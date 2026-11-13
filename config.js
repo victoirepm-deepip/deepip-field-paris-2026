@@ -6,7 +6,7 @@
 
 // Filled in phase B, after Deploy > New deployment > Web app (Execute as Me,
 // Anyone). Every Code.gs edit needs Manage deployments > pencil > New version.
-const APPS_SCRIPT_URL = "";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUKJSlC4rOOWti94Ka2N55bPI3_YMa_YBEAnD6vj-Ywlb7De-kn6sw-kLkd1jvyPfs/exec";
 
 // Reused client (authorised for the victoirepm-deepip GitHub Pages origin).
 // Byte-identical to CLIENT_ID in Code.gs. Phase B confirms the origin of the new
@@ -18,7 +18,7 @@ const GOOGLE_CLIENT_ID = "810262336028-7a92202r99cp09pv0s8gf5g5idsrer3u.apps.goo
 const EVENT = {
   name: "Beyond the pilot, Paris",
   slug: "paris-plasseraud-2026",
-  shellVersion: 1,
+  shellVersion: 2,
   // Must equal timeZone in appsscript.json and the Sheet's File > Settings > Time zone.
   timezone: "Europe/Paris",
 
