@@ -1,0 +1,14 @@
+.DS_Store
+*.csv
+*.tsv
+*.xlsx
+*.numbers
+*.pdf
+*.jpg
+*.jpeg
+*.heic
+# Photographs and exports never belong in this repo (CLAUDE.md section 2).
+# icons/*.png are the app's own icons and are tracked explicitly.
+*.png
+!icons/*.png
+config.local.js
