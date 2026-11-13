@@ -50,6 +50,12 @@ const App = {
   unmatchedCount() {
     return Model.unmatchedPeople(this.ctx.encounters, this.ctx.contacts).length;
   },
+  arrivedCount() {
+    return Model.arrivedCount(this.ctx);
+  },
+  introCount() {
+    return Model.introRequests(this.ctx).length;
+  },
 
   /* ---- identity ------------------------------------------------------- */
   async resolveMe() {
@@ -104,8 +110,9 @@ const App = {
       this.rebuild();
       // A sync landing while someone is halfway through a capture must not throw
       // away what they have typed. The new data is already in ctx; the screen
-      // catches up when they leave the form.
-      if (location.hash.indexOf("#/capture") === 0) return;
+      // catches up when they leave the form. Every screen with a text field in
+      // it is on this list, not just the capture form.
+      if (["#/capture", "#/hooks", "#/intro/"].some(r => location.hash.indexOf(r) === 0)) return;
       this.render({ scroll: false });
     });
     // A fresh token is the one thing that unblocks a stuck queue, so push
@@ -123,6 +130,10 @@ const App = {
   render({ scroll = true } = {}) {
     const [, route, arg] = (location.hash || "#/").split("/");
     const key = arg ? decodeURIComponent(arg) : null;
+    // The search term is shared by the screens that have a search box. Leaving
+    // it behind means arriving at the welcome desk with somebody else's surname
+    // already typed in, and a list of one.
+    if (route !== "search" && route !== "checkin" && route !== "capture") this.query = "";
     let body;
     switch (route) {
       case "list":     body = UI.list(this); break;
@@ -134,6 +145,12 @@ const App = {
       case "summary":  body = UI.summary(this); break;
       case "onsite":   body = UI.onsite(this); break;
       case "settings": body = UI.settings(this); break;
+      // New in this build: the four entry types and the personal recap.
+      case "checkin":  body = UI.checkin(this); break;
+      case "hooks":    body = UI.hooks(this); break;
+      case "intro":    body = UI.introForm(this, key); break;
+      case "intros":   body = UI.intros(this); break;
+      case "recap":    body = UI.recap(this); break;
       default:         body = UI.home(this);
     }
     const y = window.scrollY;
@@ -185,6 +202,53 @@ const App = {
     setTimeout(() => t.remove(), 2600);
   },
 
+  /* ---- entry rows that are not captures ---------------------------------
+     A check-in, a line from the stage and an introduction request go through
+     the same queue, the same client-ID idempotency and the same offline
+     behaviour as a capture. Three differences, and only three:
+
+       - the Entry type column says what kind of row it is;
+       - `met` is left empty, always, so nothing here can make someone look met
+         even if a future screen forgets to filter by entry type;
+       - the Source column says where it came from, which is what tells a
+         welcome-desk row from a floor row when both carry the same Met by.
+
+     Writes are refused after the freeze date, like any other write. */
+  async writeEntry(type, fields) {
+    if (Sync.state.frozen) { this.toast("Writes are closed for this event."); return null; }
+
+    const now = this.now();
+    const entry = Object.assign({
+      clientId: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+      capturedAt: new Date().toISOString(),
+      session: Model.sessionId(now),
+      entryType: type,
+      metBy: this.me.name || this.me.email,
+      met: ""
+    }, fields);
+
+    // Code.gs refuses a row with no last name, so it is checked here, while the
+    // screen is still up, rather than lost in the queue.
+    if (!Model.clean(entry.lastName)) { this.toast("A last name is needed."); return null; }
+
+    await Sync.capture(entry);
+    this.pending = await Store.queued();
+    this.rebuild();
+    return entry;
+  },
+
+  /** The identifying fields of a contact, for a row written against their card. */
+  identity(contact) {
+    return {
+      lastName: Model.clean(contact.lastName),
+      firstName: Model.clean(contact.firstName),
+      firm: Model.clean(contact.firm),
+      role: Model.clean(contact.role),
+      inList: "Yes",
+      contactRef: Model.contactRef(contact)
+    };
+  },
+
   /* ---- capture -------------------------------------------------------- */
   async saveCapture(key) {
     if (Sync.state.frozen) { this.toast("Writes are closed for this event."); return; }
@@ -215,6 +279,9 @@ const App = {
       clientId: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
       capturedAt: new Date().toISOString(),
       session: Model.sessionId(now),
+      // Stated, not left blank: this is the row type that counts as met, feeds
+      // the recap and feeds the follow-up, and the Sheet is filtered on it.
+      entryType: (typeof ENTRY_TYPES !== "undefined" && ENTRY_TYPES.capture) || "Capture",
       metBy: this.me.name || this.me.email,
       firstName,
       lastName,
@@ -289,6 +356,70 @@ document.addEventListener("click", async e => {
 
   if (act === "day")     { App.summaryDay = el.dataset.day; App.render(); return; }
 
+  if (act === "herefilter") {
+    App.filters = ["here"];
+    if (location.hash === "#/list") App.render(); else location.hash = "#/list";
+    return;
+  }
+
+  /* The welcome desk. One tap, no form, no confirmation — at four o'clock
+     people arrive in clumps and anything slower gets skipped. The button is
+     disabled while the row is written so a double tap cannot queue two rows
+     (the Client ID would stop the second one reaching the Sheet anyway). */
+  if (act === "arrive") {
+    e.preventDefault();
+    const p = App.ctx.contacts.find(x => Model.contactKey(x) === el.dataset.key);
+    if (!p) return;
+    el.disabled = true;
+    const done = await App.writeEntry(ENTRY_TYPES.checkin,
+      Object.assign(App.identity(p), { captureMethod: "Welcome desk" }));
+    if (done) {
+      App.toast(`${Model.fullName(p)} is in.`);
+      App.render({ scroll: false });
+    } else {
+      el.disabled = false;
+    }
+    return;
+  }
+
+  if (act === "savehook") {
+    e.preventDefault();
+    const lineEl = document.getElementById("hook-line");
+    const line = lineEl ? lineEl.value.trim() : "";
+    if (!line) { App.toast("Type the line first."); return; }
+
+    const speaker = App.draft.hookSpeaker
+      ? App.ctx.contacts.find(x => Model.contactKey(x) === App.draft.hookSpeaker)
+      : null;
+    const typedEl = document.getElementById("hook-who");
+    const typed = typedEl ? typedEl.value.trim() : "";
+    if (!speaker && !typed) { App.toast("Pick who said it, or type a last name."); return; }
+
+    const who = speaker ? App.identity(speaker) : { lastName: typed, firstName: "", firm: "" };
+    const done = await App.writeEntry(ENTRY_TYPES.hook,
+      Object.assign(who, { hook: line, captureMethod: "From the stage" }));
+    if (done) { App.draft = {}; App.toast("Posted. Everyone sees it at the next sync."); location.hash = "#/"; }
+    return;
+  }
+
+  if (act === "saveintro") {
+    e.preventDefault();
+    const key = el.dataset.key;
+    const p = App.ctx.contacts.find(x => Model.contactKey(x) === key);
+    if (!p) return;
+    const noteEl = document.getElementById("intro-note");
+    const done = await App.writeEntry(ENTRY_TYPES.intro,
+      Object.assign(App.identity(p), {
+        hook: noteEl ? noteEl.value.trim() : "",
+        captureMethod: "Asked from the card"
+      }));
+    if (done) {
+      App.toast("Asked. It is in the introductions list.");
+      location.hash = `#/person/${encodeURIComponent(key)}`;
+    }
+    return;
+  }
+
   if (act === "copy") {
     const text = document.querySelector(".recap").textContent;
     try {
@@ -316,6 +447,13 @@ document.addEventListener("click", async e => {
 });
 
 document.addEventListener("input", e => {
+  // The welcome desk: filter the list in place, never re-render the screen, so
+  // the keyboard stays up and the caret stays where it was.
+  if (e.target.id === "checkinq") {
+    App.query = e.target.value;
+    document.getElementById("checkin-results").innerHTML = UI.checkinResults(App);
+    return;
+  }
   if (e.target.id === "q") {
     App.query = e.target.value;
     document.getElementById("results").innerHTML = UI.searchResults(App);

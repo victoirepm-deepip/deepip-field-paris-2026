@@ -12,3 +12,6 @@
 *.png
 !icons/*.png
 config.local.js
+
+# local dev only
+.claude/

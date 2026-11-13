@@ -20,6 +20,26 @@ const UI = (() => {
 
   const chip = (text, kind = "") => `<span class="chip ${kind}">${esc(text)}</span>`;
 
+  /**
+   * The photo from the Sheet's Photo URL column, filled there by a formula from
+   * the Photos tab. Always an external URL — no image of an attendee is ever
+   * committed to this repo (CLAUDE.md section 2), and the app only ever reads.
+   *
+   * https only, so a broken or http link renders nothing rather than a mixed
+   * content warning; no referrer, because the Drive and Webflow URLs should not
+   * carry the app's address; and a load failure removes the element, so a
+   * deleted Drive file degrades to the same layout with no photo in it.
+   */
+  function photo(p, cls) {
+    const src = c(p && p.photo);
+    if (!/^https:\/\//i.test(src)) return "";
+    return `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" decoding="async"
+      referrerpolicy="no-referrer" onerror="this.remove()" />`;
+  }
+
+  /** "18:04", event-local, for an arrival or a hook. */
+  const atTime = e => Model.whenOf(e.capturedAt || e.date).slice(11);
+
   const screen = (title, body, opts = {}) => `
     <header class="bar">
       ${opts.back === false ? `<span class="bar-sp"></span>` : `<a class="bar-back" href="${esc(opts.back || "#/")}" aria-label="Back">‹</a>`}
@@ -133,10 +153,63 @@ const UI = (() => {
       </header>
       <main>
         <p class="home-hello">${esc(me.name || me.email)} · ${esc(Model.phaseLabel(now))}</p>
+        ${arrivals(app)}
+        ${hooksStrip(app)}
         ${cards}
+        <a class="home-secondary" href="#/checkin">Welcome desk — check someone in (${app.arrivedCount()} of ${app.ctx.contacts.length} here)</a>
+        ${app.introCount() ? `<a class="home-secondary" href="#/intros">Introductions asked for — ${app.introCount()}</a>` : ""}
+        <a class="home-secondary" href="#/recap">Your recap — who you met, who you missed</a>
         ${app.unmatchedCount() ? `<a class="home-secondary" href="#/onsite">Logged on site — ${app.unmatchedCount()} not in the file</a>` : ""}
         <a class="home-secondary" href="#/summary">Day summary — copy for Slack</a>
       </main>`;
+  }
+
+  /* ---- arrivals -----------------------------------------------------------
+     The one thing the welcome desk is for. Someone you are responsible for has
+     walked in and nobody has talked to them yet. Owner AND backup see it, which
+     is the whole point of the Backup column: the owner is often mid-conversation
+     when their guest arrives.
+
+     It is a list of people, not a count, because a count makes you open a screen
+     and a name makes you walk across the room. */
+
+  function arrivals(app) {
+    const list = Model.arrivalsForMe(app.ctx, app.me);
+    if (!list.length) return "";
+    const show = list.slice(0, 4);
+    return `<div class="arrivals">
+      <p class="arrivals-h">${list.length === 1 ? "Your guest has arrived" : `${list.length} of your guests are here, not met yet`}</p>
+      ${show.map(x => `<a class="arrival" href="#/person/${encodeURIComponent(Model.contactKey(x.contact))}">
+        ${photo(x.contact, "arrival-photo")}
+        <span class="arrival-body">
+          <strong>${esc(Model.fullName(x.contact))}</strong>
+          <small>${esc([c(x.contact.firm), Model.priorityShort(x.contact) && "Priority " + Model.priorityShort(x.contact)].filter(Boolean).join(" · "))}</small>
+        </span>
+        <span class="arrival-at">${esc(atTime(x.at))}</span>
+      </a>`).join("")}
+      ${list.length > show.length ? `<button class="banner-link" data-act="herefilter">See all ${list.length}</button>` : ""}
+    </div>`;
+  }
+
+  /* ---- panel hooks --------------------------------------------------------
+     Lines from the stage, posted during the panels and read during the break
+     and the dinner — the point being that someone who was at the back of the
+     room, or at the welcome desk, can still open on what was just said.
+
+     Today's only: before the panels the strip does not exist, and it does not
+     come back on Friday morning. */
+
+  function hooksStrip(app) {
+    const hooks = Model.panelHooksToday(app.ctx, app.now());
+    if (!hooks.length) return "";
+    return `<div class="hooks">
+      <p class="hooks-h">From the stage</p>
+      ${hooks.slice(0, 3).map(x => `<blockquote class="hook">
+        <p>${esc(c(x.encounter.hook))}</p>
+        <cite>${esc(Model.fullName(x.encounter) || "—")}${c(x.encounter.firm) ? ` · ${esc(c(x.encounter.firm))}` : ""} · ${esc(atTime(x.encounter))}</cite>
+      </blockquote>`).join("")}
+      <a class="banner-link" href="#/hooks">${hooks.length > 3 ? `All ${hooks.length} lines` : "Post a line"}</a>
+    </div>`;
   }
 
   /* ---- list -------------------------------------------------------------
@@ -185,12 +258,12 @@ const UI = (() => {
     // The first line is one line and stays one line: five fixed grid cells, no
     // wrapping. An event can add a second line of tags (LIST_FIELDS in config.js);
     // with none configured, or none filled for this person, the row is one line.
-    const tags = listTags(p);
+    const tags = listTags(p, app);
     return `<a class="row ${met ? "row-seen" : ""}${tags ? " row-2l" : ""}" href="#/person/${encodeURIComponent(Model.contactKey(p))}">
       <span class="row-flag ${flag ? "flag-" + flag.key : ""}" title="${flag ? esc(flag.label) : ""}">${flag ? flag.icon : ""}</span>
-      <span class="row-name">${esc(Model.fullName(p))}</span>
+      <span class="row-name">${photo(p, "row-photo")}<span class="row-nametext">${esc(Model.fullName(p))}</span></span>
       <span class="row-firm">${esc(c(p.firm))}</span>
-      <span class="row-prio ${prio ? "p" + prio : ""}">${prio ? "P" + prio : ""}</span>
+      <span class="row-prio ${prio ? "p" + prio : ""}">${esc(Model.priorityShort(p))}</span>
       <span class="row-check" title="${met ? "Met" : "Not yet met"}">${met ? "✓" : ""}</span>
       ${tags}
     </a>`;
@@ -203,14 +276,23 @@ const UI = (() => {
    */
   const YES = /^(yes|y|true|1|x|oui)$/i;
   const NO = /^(no|n|false|0|non)$/i;
-  function listTags(p) {
+  function listTags(p, app) {
     const fields = typeof LIST_FIELDS !== "undefined" ? LIST_FIELDS : [];
     const bits = fields.map(f => {
+      // A ranked grade already has the fixed cell on the first line; only the
+      // unranked labels (Vendor, Host) need a tag, so nothing is said twice.
+      if (f.key === "priority" && Model.priority(p).value !== null) return "";
       const v = c(p[f.key]);
       if (!v || NO.test(v)) return "";
       if (f.flag) return YES.test(v) ? `<span class="tag tag-flag">${esc(f.flag)}</span>` : `<span class="tag">${esc(f.flag)}: ${esc(v)}</span>`;
       return `<span class="tag">${esc(v)}</span>`;
     }).filter(Boolean);
+    // Arrived at the welcome desk and nobody has logged a conversation yet.
+    // First tag, because during the evening it is the one that decides where
+    // the next ten minutes go.
+    if (app && Model.hasArrived(p, app.ctx.index) && !Model.isMet(p, app.ctx.index)) {
+      bits.unshift(`<span class="tag tag-here">Here</span>`);
+    }
     return bits.length ? `<span class="row-tags">${bits.join("")}</span>` : "";
   }
 
@@ -237,7 +319,10 @@ const UI = (() => {
 
     const f = Model.flags(p);
     const mates = Model.firmMates(p, app.ctx.firms);
-    const thread = Model.threadFor(p, app.ctx.index);
+    // The thread is the CAPTURES. A check-in is an arrival, not a conversation,
+    // and it has its own line at the top of the card.
+    const thread = Model.capturesFor(p, app.ctx.index);
+    const arrival = Model.arrivalFor(p, app.ctx.index);
     const eng = Model.engagement(p);
     const prio = Model.priorityLabel(p);
 
@@ -249,9 +334,19 @@ const UI = (() => {
       ? `<div class="banner-customer">CUSTOMER — do not pitch. Talk to the CSM first.</div>`
       : (f.doNotPitch ? `<div class="banner-nopitch">Do not pitch. Relationship, not pipeline.</div>` : "");
 
+    /* 1b — arrived. The welcome desk writes a Check-in row; everyone's app says
+       so within one sync. Worded as a fact with a time, not as a status chip:
+       "Here since 17:12" is what makes someone walk back out onto the floor. */
+    const here = arrival
+      ? `<div class="banner-here ${Model.isMet(p, app.ctx.index) ? "banner-here-met" : ""}">
+           Here since ${esc(atTime(arrival))}${Model.isMet(p, app.ctx.index) ? " · already met" : " · not met yet"}
+         </div>`
+      : "";
+
     /* 2 — who they are */
     const who = `
       <section class="block block-who">
+        ${photo(p, "card-photo")}
         <h2 class="name">${esc(Model.fullName(p))}</h2>
         <p class="sub">${[c(p.role), c(p.firm)].filter(Boolean).map(esc).join(" · ")}</p>
         ${mates.length ? `<p class="firmcount"><a href="#/firm/${encodeURIComponent(Model.norm(p.firm))}">${mates.length + 1} people from this firm are here</a></p>` : ""}
@@ -284,8 +379,26 @@ const UI = (() => {
         <p class="say${say.prepared ? "" : " say-empty"}">${esc(say.text)}</p>
       </section>`;
 
-    /* 5 — one button */
-    const action = `<a class="btn btn-primary" href="#/capture/${encodeURIComponent(key)}">Log a meeting</a>`;
+    /* 5 — one button, and on a Plasseraud guest a second one.
+       An introduction is a different act from a capture: the seller is not
+       logging what happened, they are asking the host to walk them over. It
+       writes an Intro request row on the same tab and shows up in one list. */
+    const wantsIntroPath = /plasseraud/i.test(c(p.population)) || !!c(p.introBy);
+    const asked = Model.threadFor(p, app.ctx.index).filter(e => Model.isEntry(e, "intro"));
+    const action = `<a class="btn btn-primary" href="#/capture/${encodeURIComponent(key)}">Log a meeting</a>`
+      + (wantsIntroPath
+          ? `<a class="btn btn-ghost" href="#/intro/${encodeURIComponent(key)}">Ask for an introduction</a>`
+          : "");
+
+    const introBlock = asked.length ? `
+      <section class="block block-intro">
+        <h3>Introduction asked for</h3>
+        ${asked.map(e => `<div class="enc">
+          <div class="enc-head"><strong>${esc(c(e.metBy) || "—")}</strong><span>${esc(Model.whenOf(e.capturedAt || e.date))}</span></div>
+          ${c(e.hook) ? `<p class="enc-hook">${esc(c(e.hook))}</p>` : ""}
+        </div>`).join("")}
+        ${c(p.introBy) ? `<p class="muted small">Suggested host: ${esc(c(p.introBy))}</p>` : ""}
+      </section>` : "";
 
     /* Level 3 — collapsed */
     const account = `
@@ -326,7 +439,8 @@ const UI = (() => {
         ${thread.map(encounterLine).join("")}
       </section>` : "";
 
-    return screen("", banner + who + matter + glance + whatToSay + action + threadBlock +
+    return screen("", banner + here + who + matter + glance + whatToSay + action +
+                      threadBlock + introBlock +
                       account + engagementBlock + firmBlock,
                   { back: history.length > 1 ? "#/list" : "#/" });
   }
@@ -558,6 +672,195 @@ const UI = (() => {
     `);
   }
 
+  /* ---- the welcome desk ---------------------------------------------------
+     Downstairs, before the lifts, run by our own team on one phone. One tap per
+     guest, no form, no confirmation: at 16:05 people arrive in clumps and
+     anything slower than a tap gets skipped.
+
+     Nothing here is undoable, because the write tab is append only — so the row
+     shows the time it was tapped and the account it was tapped on, and a
+     mis-tap is something a human can see and correct in the Sheet afterwards
+     rather than something the app pretends to erase. */
+
+  function checkin(app) {
+    return screen("Welcome desk", `
+      <p class="count">${app.arrivedCount()} of ${app.ctx.contacts.length} checked in</p>
+      <input class="search" id="checkinq" type="search" inputmode="search" autocomplete="off"
+             placeholder="Last name" value="${esc(app.query)}" />
+      <div id="checkin-results">${checkinResults(app)}</div>
+      <p class="muted small pad">One tap marks a guest as here. Everyone's app shows it at the
+      next sync, and the person who covers them gets it on their home screen. It cannot be
+      taken back from here: the Sheet only ever gains rows.</p>
+    `);
+  }
+
+  function checkinResults(app) {
+    const q = Model.norm(app.query);
+    const all = app.ctx.contacts.slice().sort((a, b) =>
+      c(a.lastName).localeCompare(c(b.lastName)) || c(a.firstName).localeCompare(c(b.firstName)));
+    const rows = q.length >= 2
+      ? all.filter(p => Model.norm([Model.fullName(p), c(p.firm)].join(" ")).indexOf(q) > -1)
+      : all;
+    if (!rows.length) {
+      return `<div class="empty"><p>No match.</p>
+        <p class="muted">A guest who is not in the list still gets a badge — log them from
+        “Log a meeting” later, not from here.</p></div>`;
+    }
+    return rows.map(p => {
+      const at = Model.arrivalFor(p, app.ctx.index);
+      return `<div class="ci-row${at ? " ci-done" : ""}">
+        ${photo(p, "row-photo")}
+        <a class="ci-who" href="#/person/${encodeURIComponent(Model.contactKey(p))}">
+          <strong>${esc(Model.fullName(p))}</strong>
+          <small>${esc([c(p.firm), c(p.population)].filter(Boolean).join(" · "))}</small>
+        </a>
+        ${at
+          ? `<span class="ci-at">Here ${esc(atTime(at))}</span>`
+          : `<button class="btn btn-small" data-act="arrive" data-key="${esc(Model.contactKey(p))}" ${Sync.state.frozen ? "disabled" : ""}>Arrived</button>`}
+      </div>`;
+    }).join("");
+  }
+
+  /* ---- from the stage -----------------------------------------------------
+     A line from a panel, posted once, read by everyone on their home screen.
+     The speaker is picked from the people flagged On stage, so the row joins
+     back to a real card; a free-text last name covers a moderator or a question
+     from the floor who is not in the file. */
+
+  function hooks(app) {
+    const all = Model.panelHooks(app.ctx);
+    const speakers = app.ctx.contacts
+      .filter(p => Model.has(p.onStage))
+      .sort((a, b) => c(a.lastName).localeCompare(c(b.lastName)));
+
+    return screen("From the stage", `
+      ${speakers.length ? `<fieldset class="grp" data-group="hookSpeaker">
+        <legend>Who said it</legend>
+        <div class="grp-opts">
+          ${speakers.map(p => `<button type="button" class="opt ${app.draft.hookSpeaker === Model.contactKey(p) ? "opt-on" : ""}"
+             data-act="opt" data-group="hookSpeaker" data-value="${esc(Model.contactKey(p))}">${esc(Model.fullName(p))}</button>`).join("")}
+        </div>
+      </fieldset>` : ""}
+      <label class="extra">Someone else — last name
+        <input id="hook-who" type="text" autocomplete="off" placeholder="Only if they are not above" />
+      </label>
+      <label class="hook">The line
+        <textarea id="hook-line" rows="3" placeholder="What was said, in their words"></textarea>
+      </label>
+      <button class="btn btn-primary" data-act="savehook" ${Sync.state.frozen ? "disabled" : ""}>Post it</button>
+      <p class="muted small pad">It lands on everyone's home screen at the next sync, for the rest
+      of the evening. It is not a capture: nobody is marked as met by it.</p>
+      ${all.length ? `<h3 class="sec">Posted</h3>${all.map(x => `
+        <blockquote class="hook hook-listed">
+          <p>${esc(c(x.encounter.hook))}</p>
+          <cite>${esc(Model.fullName(x.encounter) || "—")} · ${esc(Model.whenOf(x.encounter.capturedAt || x.encounter.date))} · posted by ${esc(c(x.encounter.metBy) || "—")}</cite>
+        </blockquote>`).join("")}` : ""}
+    `);
+  }
+
+  /* ---- ask for an introduction --------------------------------------------
+     A seller cannot introduce themselves to a Plasseraud guest without the
+     partner who knows them. One line is enough: the host needs to know what the
+     conversation is for, not a briefing. */
+
+  function introForm(app, key) {
+    const p = app.ctx.contacts.find(x => Model.contactKey(x) === key);
+    if (!p) return screen("Not found", `<div class="empty"><p>That person is not in the local copy.</p></div>`);
+    return screen("Ask for an introduction", `
+      <div class="cap-who">
+        <strong>${esc(Model.fullName(p))}</strong>
+        <small>${esc([c(p.role), c(p.firm)].filter(Boolean).join(" · "))}</small>
+      </div>
+      ${c(p.introBy) ? `<p class="intro-host">Suggested host: <strong>${esc(c(p.introBy))}</strong></p>`
+                     : `<p class="muted small">No host suggested in the file — the list says who asked, and the hosts sort it out between them.</p>`}
+      <label class="hook">What you want from it
+        <textarea id="intro-note" rows="3" placeholder="One line: what you would talk about"></textarea>
+      </label>
+      <button class="btn btn-primary" data-act="saveintro" data-key="${esc(key)}" ${Sync.state.frozen ? "disabled" : ""}>Ask</button>
+      <p class="muted small pad">This writes a row like any other and shows up in “Introductions
+      asked for”. It does not mark anyone as met.</p>
+    `, { back: `#/person/${encodeURIComponent(key)}` });
+  }
+
+  /* ---- introductions asked for --------------------------------------------
+     One list, so the hosts can work through it between conversations instead of
+     reconstructing a thread at nine o'clock. */
+
+  function intros(app) {
+    const list = Model.introRequests(app.ctx);
+    if (!list.length) {
+      return screen("Introductions", `<div class="empty">
+        <p>Nothing asked for yet.</p>
+        <p class="muted">Sellers ask from a guest's card. The suggested host comes from the
+        “Intro by (Plasseraud)” column.</p></div>`);
+    }
+    return screen("Introductions", `
+      <p class="count">${list.length} asked for</p>
+      ${list.map(x => {
+        const name = x.contact ? Model.fullName(x.contact) : Model.fullName(x.encounter);
+        const firm = c(x.contact ? x.contact.firm : x.encounter.firm);
+        const host = x.contact ? c(x.contact.introBy) : "";
+        return `<div class="block block-thread">
+          <h3 class="onsite-name">${esc(name)}${firm ? ` · <span class="onsite-firm">${esc(firm)}</span>` : ""}</h3>
+          <div class="enc">
+            <div class="enc-head"><strong>${esc(c(x.encounter.metBy) || "—")} asked</strong><span>${esc(Model.whenOf(x.encounter.capturedAt || x.encounter.date))}</span></div>
+            ${c(x.encounter.hook) ? `<p class="enc-hook">${esc(c(x.encounter.hook))}</p>` : ""}
+            <p class="enc-bits">${host ? chip("Host: " + host) : chip("No host suggested")}${x.contact && Model.hasArrived(x.contact, app.ctx.index) ? chip("Here", "chip-here") : ""}</p>
+          </div>
+          ${x.contact ? `<a class="banner-link" href="#/person/${encodeURIComponent(Model.contactKey(x.contact))}">Open the card</a>` : ""}
+        </div>`;
+      }).join("")}
+    `);
+  }
+
+  /* ---- end-of-evening recap -----------------------------------------------
+     Personal, and deliberately not congratulatory. Three answers: who you met,
+     which of your A guests walked in and you never got to, and what you
+     promised. The middle one is the only one that can still be fixed before
+     people leave, so it is not buried. */
+
+  function recap(app) {
+    const r = Model.eveningRecap(app.ctx, app.me, app.now());
+    const text = Model.recapToText(r, app.me);
+    const line = (p, extra) => `<div class="recap-row"><span>${esc([p.name, p.firm].filter(Boolean).join(" — "))}</span>${extra || ""}</div>`;
+
+    return screen("Your recap", `
+      <p class="count">${esc(Model.formatDay(r.day))}${r.listSize ? ` · your list: ${r.listMet}/${r.listSize} met` : ""}</p>
+
+      <section class="block">
+        <h3>Who you met — ${r.met.length}</h3>
+        ${r.met.length
+          ? r.met.map(p => line(p)).join("")
+          : `<p class="muted small">Nothing logged on this phone yet today.</p>`}
+      </section>
+
+      <section class="block ${r.missed.length ? "block-warn" : ""}">
+        <h3>Here, and you missed them — ${r.missed.length}</h3>
+        ${r.missed.length
+          ? r.missed.map(m => `<a class="recap-row recap-link" href="#/person/${encodeURIComponent(Model.contactKey(m.contact))}">
+              <span>${esc([Model.fullName(m.contact), c(m.contact.firm)].filter(Boolean).join(" — "))}</span>
+              <small>here since ${esc(atTime(m.at))}</small>
+            </a>`).join("")
+          : `<p class="muted small">None of your A guests is still waiting.</p>`}
+        ${r.missed.length ? `<p class="muted small">Checked in at the door, no capture against them. There is still time.</p>` : ""}
+      </section>
+
+      <section class="block">
+        <h3>What you promised — ${r.nextSteps.length}</h3>
+        ${r.nextSteps.length
+          ? r.nextSteps.map(n => `<div class="recap-row"><span>${esc([n.who, n.firm].filter(Boolean).join(" — "))}</span><small>${esc(n.step)}</small></div>`).join("")
+          : `<p class="muted small">No next step logged yet.</p>`}
+      </section>
+
+      <details class="lvl3"><summary>Copy it</summary>
+        <pre class="recap">${esc(text)}</pre>
+        <button class="btn" data-act="copy">Copy</button>
+      </details>
+      <p class="muted small pad">Only captures count here. Arrivals logged at the welcome desk are
+      never in this list, whoever's account the desk is signed in on.</p>
+    `);
+  }
+
   /* ---- settings ---------------------------------------------------------- */
 
   function settings(app) {
@@ -646,5 +949,6 @@ const UI = (() => {
   }
 
   return { esc, screen, renderStatus, reconnectBar, home, list, person, firm, searchScreen, searchResults,
-           capture, tonight, summary, settings, signIn, personRow, onsite };
+           capture, tonight, summary, settings, signIn, personRow, onsite,
+           checkin, checkinResults, hooks, introForm, intros, recap };
 })();

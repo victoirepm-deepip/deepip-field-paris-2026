@@ -66,23 +66,45 @@ const Model = (() => {
   /* ---- priority -------------------------------------------------------- */
 
   /**
-   * The sales-set "Priority level 1-2-3" wins; "Suggested Prio" is the fallback.
-   * Customer rows may carry a flag ("CUSTOMER - do not pitch…") where a number
-   * would be — those have no priority and still render.
+   * The sales-set priority wins; "Suggested Prio" is the fallback.
+   *
+   * This event grades A / B / C / Vendor / Host, not P1 / P2 / P3. A, B and C
+   * rank like 1, 2 and 3 so the list sorts the way the field zone was filled in;
+   * Vendor and Host are labels with no rank — they sort last and still render,
+   * because an unranked row is a legitimate row, not a missing value.
+   *
+   * Numeric grades are still understood, so a Sheet that goes back to P1-P3
+   * keeps working without a code change.
    */
+  const LETTER_RANK = { a: 1, b: 2, c: 3 };
+
   function priority(c) {
-    const explicit = clean(c.priority).match(/[123]/);
-    if (explicit) return { value: Number(explicit[0]), source: "sales" };
+    const raw = clean(c.priority);
+    const letter = raw.match(/^([abc])\b/i);
+    if (letter) {
+      const ch = letter[1].toUpperCase();
+      return { value: LETTER_RANK[ch.toLowerCase()], source: "sales", label: ch };
+    }
+    const explicit = raw.match(/[123]/);
+    if (explicit) return { value: Number(explicit[0]), source: "sales", label: "P" + explicit[0] };
+    if (raw) return { value: null, source: "flag", label: raw };
     const suggested = clean(c.suggestedPrio);
     const m = suggested.match(/^P\s*([123])/i);
-    if (m) return { value: Number(m[1]), source: "suggested" };
-    return { value: null, source: suggested ? "flag" : "none" };
+    if (m) return { value: Number(m[1]), source: "suggested", label: "P" + m[1] };
+    return { value: null, source: suggested ? "flag" : "none", label: suggested };
   }
 
   const priorityLabel = c => {
     const p = priority(c);
-    if (p.value === null) return "";
-    return p.source === "suggested" ? `P${p.value} (suggested)` : `P${p.value}`;
+    if (!p.label) return "";
+    return p.source === "suggested" ? `${p.label} (suggested)` : p.label;
+  };
+
+  /** The one-line list cell: ranked grades only, so it stays one character wide.
+   *  Unranked labels (Vendor, Host) are shown by the tag line instead. */
+  const priorityShort = c => {
+    const p = priority(c);
+    return p.value === null ? "" : p.label;
   };
 
   /* ---- flags ----------------------------------------------------------- */
@@ -196,9 +218,96 @@ const Model = (() => {
 
   const threadFor = (c, index) => index.get(contactKey(c)) || [];
 
-  /** Met = at least one encounter that isn't an explicit "No" / "Not seen". */
+  /* ---- entry types ------------------------------------------------------
+     New in this build. One write tab, append only, four kinds of row, told
+     apart by the "Entry type" column (ENTRY_TYPES in config.js):
+
+       Capture       the normal encounter. The ONLY kind that counts as met,
+                     feeds the recap and feeds the follow-up.
+       Check-in      the welcome desk: this guest has arrived.
+       Panel hook    a line from the stage, to reuse in conversation.
+       Intro request a seller asking for a Plasseraud introduction.
+
+     A row with no Entry type at all is read as a Capture: rows typed by hand
+     into the Sheet, and anything written by an earlier build, are encounters.
+     Every place that computes "met" goes through isCapture, so a check-in can
+     never make someone look met. */
+
+  const ENTRY = typeof ENTRY_TYPES !== "undefined" ? ENTRY_TYPES : {};
+  const entryTypeOf = e => clean(e && e.entryType) || clean(ENTRY.capture) || "Capture";
+  const isEntry = (e, key) => norm(entryTypeOf(e)) === norm(ENTRY[key] || key);
+  const isCapture = e => isEntry(e, "capture");
+
+  /** The encounters that count: the thread minus check-ins, hooks and intros. */
+  const capturesFor = (c, index) => threadFor(c, index).filter(isCapture);
+
+  /** Met = at least one CAPTURE that isn't an explicit "No" / "Not seen". */
   const isMet = (c, index) =>
-    threadFor(c, index).some(e => !/^(no|not seen)$/i.test(clean(e.met)));
+    capturesFor(c, index).some(e => !/^(no|not seen)$/i.test(clean(e.met)));
+
+  /** The first check-in row for this person, i.e. when they came through the
+   *  door. threadFor is newest first, so the earliest one is the last. */
+  function arrivalFor(c, index) {
+    const ins = threadFor(c, index).filter(e => isEntry(e, "checkin"));
+    return ins.length ? ins[ins.length - 1] : null;
+  }
+  const hasArrived = (c, index) => !!arrivalFor(c, index);
+
+  /**
+   * Rows of one entry type, newest first, each joined back to a contact when
+   * one can be found — the same join the thread uses, so a hook or an intro
+   * request filed against someone in the file carries their card with it.
+   */
+  function entriesOfType(ctx, key) {
+    const byKey = new Map((ctx.contacts || []).map(c => [contactKey(c), c]));
+    return (ctx.encounters || [])
+      .filter(e => isEntry(e, key))
+      .map(e => {
+        const k = e.contactRef ? personKey(...splitRef(e.contactRef)) : encounterKey(e);
+        const contact = byKey.get(k) || looseContactMatch(e, ctx.contacts) || null;
+        return { encounter: e, contact };
+      })
+      .sort((a, b) => String(b.encounter.capturedAt || b.encounter.date || "")
+        .localeCompare(String(a.encounter.capturedAt || a.encounter.date || "")));
+  }
+
+  /** Lines posted from the stage. Shown as a strip on the home screen. */
+  const panelHooks = ctx => entriesOfType(ctx, "hook").filter(x => has(x.encounter.hook));
+
+  /** Lines posted from the stage today — what the strip actually shows, so it
+   *  is empty before the panels and does not reappear the next morning. */
+  const panelHooksToday = (ctx, now) =>
+    panelHooks(ctx).filter(x => dayOf(x.encounter.capturedAt || x.encounter.date) === localDay(now));
+
+  /** Intro requests, for the one list that answers them. */
+  const introRequests = ctx => entriesOfType(ctx, "intro");
+
+  /* ---- arrivals ---------------------------------------------------------
+     Who has come through the door and is waiting for the person who owns them.
+     The Backup counts: the whole point of the column is that somebody covers
+     the guest when the owner is deep in another conversation. */
+
+  /** Like isMine, but against the Backup column. */
+  function isMyBackup(c, me) {
+    if (!me || !me.ownerNames || !me.ownerNames.length) return false;
+    const backup = norm(c.backup);
+    if (!backup) return false;
+    return me.ownerNames.some(n => norm(n) && backup.indexOf(norm(n)) > -1);
+  }
+
+  const isMineOrBackup = (c, me) => isMine(c, me) || isMyBackup(c, me);
+
+  /** Arrived, still not met, and mine (owner or backup). Newest arrival first:
+   *  the banner is about who has just walked in. */
+  function arrivalsForMe(ctx, me) {
+    return (ctx.contacts || [])
+      .filter(c => isMineOrBackup(c, me) && hasArrived(c, ctx.index) && !isMet(c, ctx.index))
+      .map(c => ({ contact: c, at: arrivalFor(c, ctx.index) }))
+      .sort((a, b) => String(b.at.capturedAt || b.at.date || "")
+        .localeCompare(String(a.at.capturedAt || a.at.date || "")));
+  }
+
+  const arrivedCount = ctx => (ctx.contacts || []).filter(c => hasArrived(c, ctx.index)).length;
 
   /**
    * Captures that match nobody in the file, grouped by person, newest first.
@@ -208,7 +317,9 @@ const Model = (() => {
   function unmatchedPeople(encounters, contacts) {
     const known = new Set((contacts || []).map(contactKey));
     const groups = new Map();
-    (encounters || []).forEach(e => {
+    // Captures only. A check-in or a panel hook is always filed against someone
+    // who is in the file, and showing either here would read as a walk-up.
+    (encounters || []).filter(isCapture).forEach(e => {
       let k = e.contactRef ? personKey(...splitRef(e.contactRef)) : encounterKey(e);
       if (known.has(k)) return;
       if (looseContactMatch(e, contacts)) return;
@@ -272,7 +383,7 @@ const Model = (() => {
 
   /** From what was captured on site first, and from the prepared field notes second. */
   function competitorFor(c, index) {
-    const fromEncounters = threadFor(c, index)
+    const fromEncounters = capturesFor(c, index)
       .map(e => clean(e.toolToday))
       .find(t => COMPETITORS.some(x => t.toLowerCase() === x.toLowerCase()));
     if (fromEncounters) return fromEncounters;
@@ -295,13 +406,23 @@ const Model = (() => {
     const wanted = typeof LIST_FILTERS !== "undefined" ? LIST_FILTERS : null;
     if (!wanted) return base;
     const YES = /^(yes|y|true|1|x|oui)$/i, NO = /^(no|n|false|0|non)$/i;
-    return wanted.map(w => {
+    const chosen = wanted.map(w => {
       if (typeof w === "string") return base.find(f => f.id === w);
       const test = w.match === "yes"
         ? c => YES.test(clean(c[w.key]))
         : c => has(c[w.key]) && !NO.test(clean(c[w.key]));
       return { id: w.id, label: w.label, test };
     }).filter(Boolean);
+
+    // "Here, not met yet" is derived from the check-in rows, not from a Sheet
+    // column, so it cannot be declared in LIST_FILTERS the way the others are.
+    // It sits straight after "Assigned to me": during the evening it is the
+    // chip people actually use.
+    if (!chosen.some(f => f.id === "here")) {
+      const here = base.find(f => f.id === "here");
+      if (here) chosen.splice(chosen.findIndex(f => f.id === "mine") + 1, 0, here);
+    }
+    return chosen;
   }
 
   function baseFilters(ctx) {
@@ -314,6 +435,9 @@ const Model = (() => {
       { id: "p2",         label: "Priority 2",            test: c => priority(c).value === 2 },
       { id: "p3",         label: "Priority 3",            test: c => priority(c).value === 3 },
       { id: "notmet",     label: "Not yet met",           test: c => !isMet(c, ctx.index) },
+      // Checked in at the welcome desk and still nobody has logged a capture.
+      // The whole reason the door writes into the same tab as the floor.
+      { id: "here",       label: "Here, not met yet",     test: c => hasArrived(c, ctx.index) && !isMet(c, ctx.index) },
       { id: "customers",  label: "Customers",             test: c => flags(c).customer },
       { id: "advanced",   label: "A — Advanced",          test: c => flags(c).advanced },
       { id: "engaged",    label: "Product engagement",    test: c => { const e = engagement(c); return !!e && !e.noAccount; } },
@@ -410,7 +534,10 @@ const Model = (() => {
    */
   function daySummary(dateISO, ctx) {
     const day = dateISO.slice(0, 10);
-    const todays = (ctx.encounters || []).filter(e => dayOf(e.capturedAt || e.date) === day);
+    // Captures only: the recap counts conversations, and a check-in is not one.
+    const todays = (ctx.encounters || [])
+      .filter(isCapture)
+      .filter(e => dayOf(e.capturedAt || e.date) === day);
 
     const byPerson = new Map();
     todays.forEach(e => {
@@ -492,6 +619,82 @@ const Model = (() => {
   function formatDay(day) {
     const d = new Date(day + "T12:00:00");
     return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  }
+
+  /* ---- end-of-evening recap ---------------------------------------------
+     Personal, not a team object: what one seller did tonight and what is left
+     to do before the drafts go out on Friday morning. Three questions, in the
+     order they get asked at the end of an evening:
+
+       who did I meet
+       which of my A guests walked through the door and I never got to
+       what did I promise
+
+     Check-in rows are invisible here, by construction: everything counted is a
+     Capture. That matters for the account the welcome desk is signed in on —
+     its own recap must not fill up with other people's arrivals. */
+
+  /** Does a "Met by" value belong to this user? Exact profile match first. */
+  function isSameUser(metBy, me) {
+    if (!me) return false;
+    const n = norm(metBy);
+    if (!n) return false;
+    if (n === norm(me.name) || n === norm(me.fullName) || n === norm(me.email)) return true;
+    const who = findUserByName(metBy);
+    return !!(who && me.email && norm(who.email) === norm(me.email));
+  }
+
+  function eveningRecap(ctx, me, now) {
+    const day = localDay(now);
+    const mine = (ctx.contacts || []).filter(c => isMine(c, me));
+
+    const myCaptures = (ctx.encounters || [])
+      .filter(isCapture)
+      .filter(e => dayOf(e.capturedAt || e.date) === day)
+      .filter(e => isSameUser(e.metBy, me))
+      .sort((a, b) => String(a.capturedAt || a.date).localeCompare(String(b.capturedAt || b.date)));
+
+    // One line per person, not per row: the same person met twice is one line.
+    const seen = new Map();
+    myCaptures.forEach(e => {
+      if (/^(no|not seen)$/i.test(clean(e.met))) return;
+      const k = encounterKey(e);
+      if (!seen.has(k)) seen.set(k, { name: fullName(e), firm: clean(e.firm), encounters: [] });
+      seen.get(k).encounters.push(e);
+    });
+
+    const missed = mine
+      .filter(c => priority(c).value === 1)
+      .filter(c => hasArrived(c, ctx.index) && !isMet(c, ctx.index))
+      .map(c => ({ contact: c, at: arrivalFor(c, ctx.index) }))
+      .sort((a, b) => clean(a.contact.lastName).localeCompare(clean(b.contact.lastName)));
+
+    const nextSteps = myCaptures
+      .filter(e => has(e.nextStep) && !/^nothing$/i.test(clean(e.nextStep)))
+      .map(e => ({ who: fullName(e), firm: clean(e.firm), step: clean(e.nextStep), hook: clean(e.hook) }));
+
+    return {
+      day,
+      met: [...seen.values()],
+      missed,
+      nextSteps,
+      listSize: mine.length,
+      listMet: mine.filter(c => isMet(c, ctx.index)).length
+    };
+  }
+
+  function recapToText(r, me) {
+    const lines = [`${(me && (me.name || me.email)) || "Me"} — ${formatDay(r.day)}`, ""];
+    lines.push(`Met tonight: ${r.met.length}${r.listSize ? ` · your list: ${r.listMet}/${r.listSize}` : ""}`);
+    r.met.forEach(p => lines.push(`• ${[p.name, p.firm].filter(Boolean).join(" — ")}`));
+    if (!r.met.length) lines.push("• nothing logged yet");
+    lines.push("");
+    lines.push(`A guests who were here and you missed: ${r.missed.length}`);
+    r.missed.forEach(m => lines.push(`• ${[fullName(m.contact), clean(m.contact.firm)].filter(Boolean).join(" — ")}`));
+    lines.push("");
+    lines.push(`Next steps you promised: ${r.nextSteps.length}`);
+    r.nextSteps.forEach(n => lines.push(`• ${n.step} — ${[n.who, n.firm].filter(Boolean).join(", ")}${n.hook ? ` (${n.hook})` : ""}`));
+    return lines.join("\n");
   }
 
   /* ---- the calendar ---------------------------------------------------- */
@@ -635,8 +838,12 @@ const Model = (() => {
 
   return {
     clean, has, norm, fullName, contactKey, encounterKey, contactRef, personKey, parseMoney, displayDate,
-    priority, priorityLabel, flags, topFlag, engagement, whatToSay,
+    priority, priorityLabel, priorityShort, flags, topFlag, engagement, whatToSay,
     indexEncounters, threadFor, isMet, looseContactMatch, unmatchedPeople,
+    entryTypeOf, isEntry, isCapture, capturesFor, arrivalFor, hasArrived, arrivedCount,
+    entriesOfType, panelHooks, panelHooksToday, introRequests,
+    isMyBackup, isMineOrBackup, arrivalsForMe,
+    eveningRecap, recapToText, isSameUser, findUserByName,
     buildFirms, firmMates, competitorFor, directoryLabel,
     availableFilters, applyFilters, sortContacts, isMine, search,
     dinnerGuests, inviterOf,

@@ -190,6 +190,30 @@ a `Client ID` count towards the evening recap.
 **The Sheet gets renamed mid-event.** Keep old tab names as aliases. An alias costs
 nothing and saves a redeploy.
 
+**A module-specific screen cannot avoid `app.js`** (Paris, Nov 2026). Section 4 says
+`ui.js` changes per event for a module-specific screen and `app.js` never changes,
+but the router in `app.js` is a hardcoded `switch` and the delegated click handler
+is a chain of `if (act === …)`. A new screen therefore needs a case, and a new
+button needs a handler, or neither is reachable. The Paris build added five screens
+(welcome desk, from the stage, ask for an introduction, introductions, personal
+recap) and the changes to `app.js` were purely additive: five `case` lines, two
+counters, one `writeEntry()` beside `saveCapture()`, four handlers, one input
+handler, and the half-typed-form guard widened from `#/capture` to every screen
+with a text field in it. Nothing existing was rewritten. Read section 4 as "the
+three files with the field lessons in them — `store.js`, `auth.js`, `sync.js` — are
+the ones you stop at", and expect `app.js` to gain lines whenever `ui.js` gains a
+screen.
+
+**One write surface can carry more than one kind of row** (Paris, Nov 2026). An
+`Entry type` column on the write tab let the welcome desk, the panel hooks and the
+introduction requests share the capture tab, the offline queue and the idempotency
+key, with no backend change at all — the column maps already pass any mapped key
+through. The rule that makes it safe: *every* place that computes "met" filters to
+`Capture` first, in `model.js`, not in the screens. The failure it avoids is a
+check-in making someone look met, which would quietly empty the "not yet met" list
+on the one evening it matters. A row with no `Entry type` at all is read as a
+capture, so rows typed into the Sheet by hand still count.
+
 ---
 
 ## 6. Deployment checklist
