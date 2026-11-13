@@ -299,3 +299,4 @@ h1,h2,h3{margin:0}
 .recap-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .recap-row small{color:var(--fg3);font-size:12px;flex:none}
 .recap-link small{color:var(--amber)}
+.count-live{color:var(--green);font-weight:600}

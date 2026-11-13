@@ -18,7 +18,7 @@ const GOOGLE_CLIENT_ID = "810262336028-7a92202r99cp09pv0s8gf5g5idsrer3u.apps.goo
 const EVENT = {
   name: "Beyond the pilot, Paris",
   slug: "paris-plasseraud-2026",
-  shellVersion: 2,
+  shellVersion: 3,
   // Must equal timeZone in appsscript.json and the Sheet's File > Settings > Time zone.
   timezone: "Europe/Paris",
 

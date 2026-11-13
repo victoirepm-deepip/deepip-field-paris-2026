@@ -472,9 +472,41 @@ const Model = (() => {
     );
   }
 
-  function sortContacts(list, ctx, { notMetFirst = false } = {}) {
+  /**
+   * Is the list in "the room is filling up" order? True only while the phase
+   * that the welcome desk is checking people into is the phase we are in.
+   *
+   * Derived from the rows rather than from a date or a phase id in config: a
+   * check-in row carries the phase it was written in, so this turns itself on
+   * when the first guest comes through the door and off again when the phase
+   * ends — including after midnight, which a "today" test would get wrong.
+   * Before the doors open there are no check-ins and nothing changes.
+   */
+  function arrivalOrderActive(ctx, now) {
+    const p = phaseFor(now);
+    if (!p) return false;
+    return (ctx.encounters || []).some(e => isEntry(e, "checkin") && clean(e.session) === p.id);
+  }
+
+  /**
+   * Three tiers while the room is filling up:
+   *   0  here, nobody has talked to them    — the only group that can still be fixed
+   *   1  not arrived yet                    — by priority, the prepared order
+   *   2  met                                — done, out of the way
+   * Priority sorts inside each tier, so an A guest leads their own group.
+   */
+  function sortContacts(list, ctx, { notMetFirst = false, arrivalsFirst = false } = {}) {
+    // Precomputed: the comparator runs O(n log n) times and must stay cheap
+    // and consistent while it does.
+    const tier = new Map();
+    if (arrivalsFirst) {
+      list.forEach(c => tier.set(c, isMet(c, ctx.index) ? 2 : (hasArrived(c, ctx.index) ? 0 : 1)));
+    }
     return list.slice().sort((a, b) => {
-      if (notMetFirst) {
+      if (arrivalsFirst) {
+        const at = tier.get(a), bt = tier.get(b);
+        if (at !== bt) return at - bt;
+      } else if (notMetFirst) {
         const am = isMet(a, ctx.index) ? 1 : 0;
         const bm = isMet(b, ctx.index) ? 1 : 0;
         if (am !== bm) return am - bm;
@@ -842,7 +874,7 @@ const Model = (() => {
     indexEncounters, threadFor, isMet, looseContactMatch, unmatchedPeople,
     entryTypeOf, isEntry, isCapture, capturesFor, arrivalFor, hasArrived, arrivedCount,
     entriesOfType, panelHooks, panelHooksToday, introRequests,
-    isMyBackup, isMineOrBackup, arrivalsForMe,
+    isMyBackup, isMineOrBackup, arrivalsForMe, arrivalOrderActive,
     eveningRecap, recapToText, isSameUser, findUserByName,
     buildFirms, firmMates, competitorFor, directoryLabel,
     availableFilters, applyFilters, sortContacts, isMine, search,

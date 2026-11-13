@@ -220,10 +220,19 @@ const UI = (() => {
   function list(app) {
     const all = Model.availableFilters(app.ctx);
     const active = app.filters;
+    // While the room is filling up, the list reorders itself: people who are
+    // here and have not been met rise to the top, whatever their grade, and the
+    // ones already met drop to the bottom. Outside that phase the prepared
+    // order stands, because a list that reshuffles while you are learning faces
+    // on the Tuesday is just confusing.
+    const live = Model.arrivalOrderActive(app.ctx, app.now());
     const rows = Model.sortContacts(
       Model.applyFilters(app.ctx.contacts, active, app.ctx),
       app.ctx,
-      { notMetFirst: !app.me.hasList || active.indexOf("mine") === -1 }
+      {
+        arrivalsFirst: live,
+        notMetFirst: !app.me.hasList || active.indexOf("mine") === -1
+      }
     );
 
     const activeChips = active.map(id => {
@@ -245,7 +254,7 @@ const UI = (() => {
           <div class="filters-avail">${available}</div>
         </details>
       </div>
-      <p class="count">${rows.length} shown</p>
+      <p class="count">${rows.length} shown${live ? ` · <span class="count-live">here and not met first</span>` : ""}</p>
       ${rows.length ? rows.map(p => personRow(p, app)).join("") : emptyList(app, active)}
     `);
   }
