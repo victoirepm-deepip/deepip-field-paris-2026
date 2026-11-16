@@ -103,7 +103,7 @@ function coverageLoad() {
   if (lastRow <= headerRow) { Logger.log('No data rows.'); return; }
   var values = sheet.getRange(headerRow + 1, 1, lastRow - headerRow, sheet.getLastColumn()).getValues();
 
-  ['ownership', 'backup', 'priority', 'population'].forEach(function (key) {
+  ['ownership', 'priority', 'population'].forEach(function (key) {
     if (!cols[key]) { Logger.log(key + ': column not found'); return; }
     var counts = {}, blank = 0;
     values.forEach(function (r) {
@@ -122,6 +122,79 @@ function coverageLoad() {
   Logger.log('Covered by and Backup must spell the surname the app knows');
   Logger.log('(config.js, USERS.ownerNames). A value that does not contain one');
   Logger.log('of those surnames gives that person an empty list.');
+}
+
+/**
+ * How many rows carry an Ownership value that reaches nobody.
+ *
+ * This is the one check worth running again the moment the AEs have claimed
+ * their guests, because the failure is silent: the app matches a user to a
+ * guest by looking for their surname inside the Ownership cell, so a cell
+ * holding a first name, a nickname, an initial or a person who is not on the
+ * floor matches nobody, and that guest simply never appears on anyone's list.
+ * Nothing errors. The list is just quietly short.
+ *
+ * Prints DeepIP names only — never a guest — so the log is safe to paste.
+ */
+function unmatchedOwnership() {
+  // Mirrors USERS in config.js: surnames only, lower case, no accents.
+  // If someone joins or leaves the floor, change it in both places.
+  var OWNER_NAMES = ['derville', 'andersson', 'julia', 'kefalas', 'chapman',
+                     'leduc', 'archimbaud', 'jorget', 'perinet'];
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = resolveTab(ss, 'contacts', null);
+  var headerRow = findHeaderRow(sheet, CONTACT_COLUMNS);
+  var cols = resolveColumns(sheet, headerRow, CONTACT_COLUMNS, [], sheet.getName());
+  if (!cols.ownership) { Logger.log('No Ownership column found. Check the header.'); return; }
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= headerRow) { Logger.log('No data rows.'); return; }
+  var values = sheet.getRange(headerRow + 1, 1, lastRow - headerRow, sheet.getLastColumn()).getValues();
+
+  function norm(s) {
+    return String(s == null ? '' : s).toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  var people = 0, blank = 0, matched = 0, perOwner = {}, unmatched = {};
+  values.forEach(function (r) {
+    var first = cell(r, cols, 'firstName'), last = cell(r, cols, 'lastName'), firm = cell(r, cols, 'firm');
+    if (!first && !last && !firm) return;     // a row the app drops anyway
+    people++;
+    var raw = cell(r, cols, 'ownership');
+    if (!raw) { blank++; return; }
+    var v = norm(raw);
+    var hit = null;
+    for (var i = 0; i < OWNER_NAMES.length; i++) {
+      if (v.indexOf(OWNER_NAMES[i]) > -1) { hit = OWNER_NAMES[i]; break; }
+    }
+    if (hit) { matched++; perOwner[hit] = (perOwner[hit] || 0) + 1; }
+    else unmatched[raw] = (unmatched[raw] || 0) + 1;
+  });
+
+  Logger.log(people + ' people on the tab');
+  Logger.log('  ' + matched + ' claimed by someone the app knows');
+  Logger.log('  ' + blank + ' with Ownership empty  -> on nobody\'s list, and no arrival banner');
+  var bad = Object.keys(unmatched);
+  Logger.log('  ' + bad.reduce(function (n, k) { return n + unmatched[k]; }, 0) +
+             ' with a value that matches no user in USERS');
+  Logger.log('');
+  Logger.log('--- per person, as the app will count it ---');
+  Object.keys(perOwner).sort().forEach(function (k) { Logger.log('  ' + perOwner[k] + '  ' + k); });
+  if (bad.length) {
+    Logger.log('');
+    Logger.log('--- values that reach nobody ---');
+    bad.sort().forEach(function (k) { Logger.log('  ' + unmatched[k] + '  "' + k + '"'); });
+    Logger.log('Each of these guests is on no list. Either fix the cell, or add the');
+    Logger.log('name to ownerNames in config.js (which needs a push, not a redeploy).');
+  }
+  if (blank) {
+    Logger.log('');
+    Logger.log(blank + ' unclaimed guest(s) raise no arrival banner for anyone when they');
+    Logger.log('check in. They are still visible to everyone, and the "Here, not met yet"');
+    Logger.log('chip still shows them: that chip does not care who owns whom.');
+  }
 }
 
 /**

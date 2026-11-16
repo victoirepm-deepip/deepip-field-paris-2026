@@ -18,7 +18,7 @@ const GOOGLE_CLIENT_ID = "810262336028-7a92202r99cp09pv0s8gf5g5idsrer3u.apps.goo
 const EVENT = {
   name: "Beyond the pilot, Paris",
   slug: "paris-plasseraud-2026",
-  shellVersion: 3,
+  shellVersion: 4,
   // Must equal timeZone in appsscript.json and the Sheet's File > Settings > Time zone.
   timezone: "Europe/Paris",
 
@@ -42,7 +42,7 @@ const EVENT = {
 /* ---- Who is who ------------------------------------------------------- */
 /*
   `name` is what lands in "Met by". `ownerNames` are matched as substrings of the
-  "Covered by" column (OWNER_KEYS), accents stripped. They must be DISTINCTIVE:
+  "Ownership" column (OWNER_KEYS), accents stripped. They must be DISTINCTIVE:
   two Edouards and two Thomases are in the data, so first names alone would
   assign one person's list to the other. Surnames only.
 
@@ -62,7 +62,8 @@ const USERS = {
   "victoire.perinet-marquet@deepip.ai": { name: "Victoire",  fullName: "Victoire Perinet-Marquet", role: "Marketing", hasList: true,  isTutor: false, ownerNames: ["perinet"] }
 };
 
-// "Assigned to me" = the Covered by column. Backup is shown on the card, not filtered.
+// "Assigned to me" = the Ownership column. Renamed from "Covered by" on 16 Nov;
+// the old header is kept as an alias in Code.gs. Backup was deleted that day.
 const OWNER_KEYS = ["ownership"];
 
 /* ---- Capture form ----------------------------------------------------- */
@@ -122,13 +123,12 @@ const FOLLOW_UP = {
 const CARD_FIELDS = [
   { key: "onStage",       label: "On stage" },
   { key: "population",    label: "Guest of" },
-  { key: "ownership",     label: "Covered by" },
-  { key: "backup",        label: "Backup" },
-  { key: "bringIn",       label: "Bring in" },
+  // Named as the Sheet names it, so the column an AE just filled in and the line
+  // they read on the card are obviously the same thing.
+  { key: "ownership",     label: "Ownership", empty: "Not claimed yet" },
   { key: "whyThem",       label: "Why them" },
   { key: "opener",        label: "Opener" },
   { key: "watchOuts",     label: "Watch-outs" },
-  { key: "introBy",       label: "Intro by (Plasseraud)" },
   { key: "accountStatus", label: "Lifecycle stage" },
   { key: "deal",          label: "Deal" },
   { key: "dealStage",     label: "Deal stage" },
@@ -149,7 +149,7 @@ const LIST_FIELDS = [
 const LIST_FILTERS = [
   "mine",
   "notmet",
-  { id: "prio-a",     label: "Priority A",       key: "priority",   match: "A" },
+  { id: "prio-1",     label: "Priority 1",       key: "priority",   match: "1" },
   { id: "plasseraud", label: "Plasseraud guests", key: "population", match: "Plasseraud guest" },
   { id: "hosts",      label: "Hosts",            key: "population", match: "Plasseraud host" },
   { id: "speakers",   label: "On stage",         key: "onStage",    match: "Panel" },

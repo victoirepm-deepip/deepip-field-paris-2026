@@ -54,9 +54,15 @@ var HEADER_SCAN_DEPTH = 25;
 //   - `Organization` (firm) vs `Org type` / `Org attendees`: no prefix overlap.
 //   - `Deal` prefix-matches `Deal stage` and `Deal next step`. Exact match wins,
 //     and `deal` is declared AFTER the two longer ones anyway.
-//   - `Covered by` (field zone) and `HubSpot owner` (CRM) are different columns.
+//   - `Ownership` (field zone) and `HubSpot owner` (CRM) are different columns,
+//     and neither is a prefix of the other.
 // Not read, on purpose: Key (export join), LinkedIn URL, Sales check, Follow-up
 // done. `Follow-up owner` is read for the follow-up page only.
+//
+// 16 Nov, after the review with Bertrand: `Covered by` renamed `Ownership` and
+// kept as an alias, so a phone running the old build does not go blank between
+// the rename and the redeploy. Backup, Bring in and Intro by (Plasseraud) were
+// deleted from the tab and are gone from here.
 var CONTACT_COLUMNS = {
   firstName:        { headers: ['First name'],            required: true  },
   lastName:         { headers: ['Last name'],             required: true  },
@@ -80,15 +86,15 @@ var CONTACT_COLUMNS = {
   lastCrm:          { headers: ['Last contacted'],        required: false },
   crmRecord:        { headers: ['HubSpot URL'],           required: false },
   photo:            { headers: ['Photo URL'],             required: false },
-  // Field zone, checked by sales by Mon 16 Nov.
-  ownership:        { headers: ['Covered by'],            required: false },
-  backup:           { headers: ['Backup'],                required: false },
-  bringIn:          { headers: ['Bring in'],              required: false },
+  // Field zone. Claimed by the AEs themselves through a dropdown of full names,
+  // by Mon 16 Nov 6 pm. Empty until then for everyone except the Plasseraud
+  // hosts, and an empty Ownership column means an empty "My list": that is the
+  // expected state this week, not a fault.
+  ownership:        { headers: ['Ownership', 'Covered by'], required: false },
   priority:         { headers: ['Priority'],              required: false },
   whyThem:          { headers: ['Why them'],              required: false },
   opener:           { headers: ['Opener'],                required: false },
   watchOuts:        { headers: ['Watch-outs'],            required: false },
-  introBy:          { headers: ['Intro by (Plasseraud)'], required: false },
   followUpOwner:    { headers: ['Follow-up owner'],       required: false }
 };
 

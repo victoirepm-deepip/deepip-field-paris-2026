@@ -122,8 +122,11 @@ const UI = (() => {
     const now = app.now();
     const me = app.me;
     const listLabel = me.hasList ? "My list" : "Everyone";
+    const mine = app.myListCount();
     const listSub = me.hasList
-      ? `${app.myListCount()} assigned to you`
+      // Nought is a sentence, not a number: it means "claim your guests", and
+      // saying "0 assigned to you" leaves people tapping to find out why.
+      ? (mine ? `${mine} assigned to you` : "No guests claimed yet — tap to see everyone")
       : `${app.ctx.contacts.length} people, not-yet-met first`;
 
     const entries = {
@@ -166,9 +169,10 @@ const UI = (() => {
 
   /* ---- arrivals -----------------------------------------------------------
      The one thing the welcome desk is for. Someone you are responsible for has
-     walked in and nobody has talked to them yet. Owner AND backup see it, which
-     is the whole point of the Backup column: the owner is often mid-conversation
-     when their guest arrives.
+     walked in and nobody has talked to them yet. It follows Ownership alone
+     since the Backup column was deleted on 16 Nov, so a guest nobody has
+     claimed raises no banner: the "Here, not met yet" chip is the net that
+     catches those, because it does not care who owns anyone.
 
      It is a list of people, not a count, because a count makes you open a screen
      and a name makes you walk across the room. */
@@ -293,6 +297,13 @@ const UI = (() => {
       if (f.key === "priority" && Model.priority(p).value !== null) return "";
       const v = c(p[f.key]);
       if (!v || NO.test(v)) return "";
+      // `flag` with a `match` is a label for one value of a column that holds
+      // several: show the short label when it matches and nothing when it does
+      // not. Without it this printed "Plasseraud guest: Plasseraud guest".
+      if (f.flag && f.match) {
+        return Model.norm(v).indexOf(Model.norm(f.match)) > -1
+          ? `<span class="tag tag-flag">${esc(f.flag)}</span>` : "";
+      }
       if (f.flag) return YES.test(v) ? `<span class="tag tag-flag">${esc(f.flag)}</span>` : `<span class="tag">${esc(f.flag)}: ${esc(v)}</span>`;
       return `<span class="tag">${esc(v)}</span>`;
     }).filter(Boolean);
@@ -306,12 +317,17 @@ const UI = (() => {
   }
 
   function emptyList(app, active) {
-    // The most likely reason on the morning of day one: nobody has filled the
-    // ownership column yet. Say so, rather than showing a blank screen.
+    // Expected all this week, not a fault: the AEs claim their own guests in
+    // the Sheet, so Ownership is empty until they do. An empty screen with no
+    // explanation is read as a broken app and gets reported as one, so this
+    // says what is happening, who fixes it, and offers the way through.
     if (active.indexOf("mine") > -1) {
       return `<div class="empty">
-        <p>Nothing is assigned to you yet.</p>
-        <p class="muted">The ownership column in the Sheet is what feeds this. Remove the “Assigned to me” chip above to see everyone.</p>
+        <p>No guests assigned to you yet.</p>
+        <p class="muted">You claim your own guests in the Sheet: put your name in the
+        <strong>Ownership</strong> column, from the dropdown. Whatever you claim shows up here
+        at the next refresh.</p>
+        <button class="btn btn-ghost" data-act="clearfilters">Show everyone instead</button>
       </div>`;
     }
     return `<div class="empty"><p>No one matches these filters.</p></div>`;
@@ -392,7 +408,10 @@ const UI = (() => {
        An introduction is a different act from a capture: the seller is not
        logging what happened, they are asking the host to walk them over. It
        writes an Intro request row on the same tab and shows up in one list. */
-    const wantsIntroPath = /plasseraud/i.test(c(p.population)) || !!c(p.introBy);
+    // Plasseraud's own people and their guests. The suggested-partner column was
+    // dropped on 16 Nov, so the request now simply says who wants the
+    // introduction and why, and the hosts work out between them who makes it.
+    const wantsIntroPath = /plasseraud/i.test(c(p.population));
     const asked = Model.threadFor(p, app.ctx.index).filter(e => Model.isEntry(e, "intro"));
     const action = `<a class="btn btn-primary" href="#/capture/${encodeURIComponent(key)}">Log a meeting</a>`
       + (wantsIntroPath
@@ -406,7 +425,6 @@ const UI = (() => {
           <div class="enc-head"><strong>${esc(c(e.metBy) || "—")}</strong><span>${esc(Model.whenOf(e.capturedAt || e.date))}</span></div>
           ${c(e.hook) ? `<p class="enc-hook">${esc(c(e.hook))}</p>` : ""}
         </div>`).join("")}
-        ${c(p.introBy) ? `<p class="muted small">Suggested host: ${esc(c(p.introBy))}</p>` : ""}
       </section>` : "";
 
     /* Level 3 — collapsed */
@@ -780,8 +798,8 @@ const UI = (() => {
         <strong>${esc(Model.fullName(p))}</strong>
         <small>${esc([c(p.role), c(p.firm)].filter(Boolean).join(" · "))}</small>
       </div>
-      ${c(p.introBy) ? `<p class="intro-host">Suggested host: <strong>${esc(c(p.introBy))}</strong></p>`
-                     : `<p class="muted small">No host suggested in the file — the list says who asked, and the hosts sort it out between them.</p>`}
+      <p class="muted small">The list says who asked and what for. Which Plasseraud partner makes
+      the introduction is theirs to work out — the file no longer suggests one.</p>
       <label class="hook">What you want from it
         <textarea id="intro-note" rows="3" placeholder="One line: what you would talk about"></textarea>
       </label>
@@ -808,13 +826,13 @@ const UI = (() => {
       ${list.map(x => {
         const name = x.contact ? Model.fullName(x.contact) : Model.fullName(x.encounter);
         const firm = c(x.contact ? x.contact.firm : x.encounter.firm);
-        const host = x.contact ? c(x.contact.introBy) : "";
+        const population = c(x.contact ? x.contact.population : "");
         return `<div class="block block-thread">
           <h3 class="onsite-name">${esc(name)}${firm ? ` · <span class="onsite-firm">${esc(firm)}</span>` : ""}</h3>
           <div class="enc">
             <div class="enc-head"><strong>${esc(c(x.encounter.metBy) || "—")} asked</strong><span>${esc(Model.whenOf(x.encounter.capturedAt || x.encounter.date))}</span></div>
             ${c(x.encounter.hook) ? `<p class="enc-hook">${esc(c(x.encounter.hook))}</p>` : ""}
-            <p class="enc-bits">${host ? chip("Host: " + host) : chip("No host suggested")}${x.contact && Model.hasArrived(x.contact, app.ctx.index) ? chip("Here", "chip-here") : ""}</p>
+            <p class="enc-bits">${population ? chip(population) : ""}${x.contact && Model.hasArrived(x.contact, app.ctx.index) ? chip("Here", "chip-here") : ""}</p>
           </div>
           ${x.contact ? `<a class="banner-link" href="#/person/${encodeURIComponent(Model.contactKey(x.contact))}">Open the card</a>` : ""}
         </div>`;

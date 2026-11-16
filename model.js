@@ -284,24 +284,17 @@ const Model = (() => {
 
   /* ---- arrivals ---------------------------------------------------------
      Who has come through the door and is waiting for the person who owns them.
-     The Backup counts: the whole point of the column is that somebody covers
-     the guest when the owner is deep in another conversation. */
 
-  /** Like isMine, but against the Backup column. */
-  function isMyBackup(c, me) {
-    if (!me || !me.ownerNames || !me.ownerNames.length) return false;
-    const backup = norm(c.backup);
-    if (!backup) return false;
-    return me.ownerNames.some(n => norm(n) && backup.indexOf(norm(n)) > -1);
-  }
+     16 Nov: the Backup column was deleted from the Sheet, so this is Ownership
+     and nothing else. The consequence worth knowing on the night: a guest whose
+     Ownership is still empty raises no banner for anybody. The "Here, not met
+     yet" chip is the safety net — it is owner-blind and shows every arrival. */
 
-  const isMineOrBackup = (c, me) => isMine(c, me) || isMyBackup(c, me);
-
-  /** Arrived, still not met, and mine (owner or backup). Newest arrival first:
-   *  the banner is about who has just walked in. */
+  /** Arrived, still not met, and mine. Newest arrival first: the banner is
+   *  about who has just walked in. */
   function arrivalsForMe(ctx, me) {
     return (ctx.contacts || [])
-      .filter(c => isMineOrBackup(c, me) && hasArrived(c, ctx.index) && !isMet(c, ctx.index))
+      .filter(c => isMine(c, me) && hasArrived(c, ctx.index) && !isMet(c, ctx.index))
       .map(c => ({ contact: c, at: arrivalFor(c, ctx.index) }))
       .sort((a, b) => String(b.at.capturedAt || b.at.date || "")
         .localeCompare(String(a.at.capturedAt || a.at.date || "")));
@@ -408,9 +401,21 @@ const Model = (() => {
     const YES = /^(yes|y|true|1|x|oui)$/i, NO = /^(no|n|false|0|non)$/i;
     const chosen = wanted.map(w => {
       if (typeof w === "string") return base.find(f => f.id === w);
+      /* Three kinds of configured chip:
+           match: "yes"      a yes/no column, ticked
+           match: "<value>"  that column holds this value
+           no match          that column holds anything at all
+
+         The middle one used to fall through to the third: the value was read
+         to choose a test and then never compared, so "Priority A" meant "has
+         any priority" and "Plasseraud guests" meant "has any population",
+         which at this event is everyone. Matched as a normalised substring,
+         so "Panel" still finds "Panel 1" and "Panel 2". */
       const test = w.match === "yes"
         ? c => YES.test(clean(c[w.key]))
-        : c => has(c[w.key]) && !NO.test(clean(c[w.key]));
+        : w.match
+          ? c => { const v = norm(c[w.key]), m = norm(w.match); return !!v && !!m && v.indexOf(m) > -1; }
+          : c => has(c[w.key]) && !NO.test(clean(c[w.key]));
       return { id: w.id, label: w.label, test };
     }).filter(Boolean);
 
@@ -874,7 +879,7 @@ const Model = (() => {
     indexEncounters, threadFor, isMet, looseContactMatch, unmatchedPeople,
     entryTypeOf, isEntry, isCapture, capturesFor, arrivalFor, hasArrived, arrivedCount,
     entriesOfType, panelHooks, panelHooksToday, introRequests,
-    isMyBackup, isMineOrBackup, arrivalsForMe, arrivalOrderActive,
+    arrivalsForMe, arrivalOrderActive,
     eveningRecap, recapToText, isSameUser, findUserByName,
     buildFirms, firmMates, competitorFor, directoryLabel,
     availableFilters, applyFilters, sortContacts, isMine, search,
