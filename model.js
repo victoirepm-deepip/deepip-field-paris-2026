@@ -664,7 +664,7 @@ const Model = (() => {
      order they get asked at the end of an evening:
 
        who did I meet
-       which of my A guests walked through the door and I never got to
+       which of my priority 1 guests walked through the door and I never got to
        what did I promise
 
      Check-in rows are invisible here, by construction: everything counted is a
@@ -726,7 +726,7 @@ const Model = (() => {
     r.met.forEach(p => lines.push(`• ${[p.name, p.firm].filter(Boolean).join(" — ")}`));
     if (!r.met.length) lines.push("• nothing logged yet");
     lines.push("");
-    lines.push(`A guests who were here and you missed: ${r.missed.length}`);
+    lines.push(`Priority 1 guests who were here and you missed: ${r.missed.length}`);
     r.missed.forEach(m => lines.push(`• ${[fullName(m.contact), clean(m.contact.firm)].filter(Boolean).join(" — ")}`));
     lines.push("");
     lines.push(`Next steps you promised: ${r.nextSteps.length}`);

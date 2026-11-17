@@ -842,7 +842,7 @@ const UI = (() => {
 
   /* ---- end-of-evening recap -----------------------------------------------
      Personal, and deliberately not congratulatory. Three answers: who you met,
-     which of your A guests walked in and you never got to, and what you
+     which of your priority 1 guests walked in and you never got to, and what you
      promised. The middle one is the only one that can still be fixed before
      people leave, so it is not buried. */
 
@@ -868,7 +868,7 @@ const UI = (() => {
               <span>${esc([Model.fullName(m.contact), c(m.contact.firm)].filter(Boolean).join(" — "))}</span>
               <small>here since ${esc(atTime(m.at))}</small>
             </a>`).join("")
-          : `<p class="muted small">None of your A guests is still waiting.</p>`}
+          : `<p class="muted small">None of your priority 1 guests is still waiting.</p>`}
         ${r.missed.length ? `<p class="muted small">Checked in at the door, no capture against them. There is still time.</p>` : ""}
       </section>
 
