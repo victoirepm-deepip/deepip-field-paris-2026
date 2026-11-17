@@ -481,7 +481,6 @@ const UI = (() => {
       <div class="enc-head"><strong>${esc(c(e.metBy) || "—")}</strong><span>${esc(when)}${c(e.session) ? " · " + esc(Model.sessionDisplay(e.session)) : ""}</span></div>
       ${c(e.hook) ? `<p class="enc-hook">${esc(c(e.hook))}</p>` : ""}
       ${bits.length ? `<p class="enc-bits">${bits.map(b => chip(b)).join("")}</p>` : ""}
-      ${c(e.observation) ? `<p class="enc-obs">${esc(c(e.observation))}</p>` : ""}
     </div>`;
   }
 
@@ -528,7 +527,6 @@ const UI = (() => {
 
   /* ---- capture ----------------------------------------------------------
      Five fields. Four as thumb-sized button groups, one short text. No dictation.
-     Tutors get one extra field, one tap, no text — same form, same row, own column.
 
      The unknown-person path is the top of this screen, not a dead end reached
      after a failed search: it is the most-used path across the three days. */
@@ -570,7 +568,6 @@ const UI = (() => {
         <textarea id="cap-hook" rows="3" placeholder="One line you will be glad you wrote">${esc(draft.hook || "")}</textarea>
       </label>
       ${group("nextStep", CAPTURE_OPTIONS.nextStep, draft.nextStep)}
-      ${app.me.isTutor ? group("observation", CAPTURE_OPTIONS.observation, draft.observation) : ""}
       ${(typeof CAPTURE_EXTRA !== "undefined" ? CAPTURE_EXTRA : []).map(x => extraField(x, draft)).join("")}
       <button class="btn btn-primary" data-act="save" ${Sync.state.frozen ? "disabled" : ""}>Save</button>
       <p class="muted small pad">Saved on this phone first. It reaches the Sheet on its own, even if you are offline now.</p>
@@ -599,7 +596,7 @@ const UI = (() => {
 
   const groupLabel = n => ({
     met: "Met", temperature: "Temperature", toolToday: "Tool today",
-    nextStep: "Next step", observation: "What you saw (tutor)"
+    nextStep: "Next step"
   })[n] || n;
 
   /* ---- tonight ----------------------------------------------------------
@@ -901,7 +898,6 @@ const UI = (() => {
         ${field("Name", app.me.fullName || app.me.name)}
         ${field("Logged as", app.me.name)}
         ${field("Role", app.me.role)}
-        <label class="toggle"><input type="checkbox" data-act="toggle-tutor" ${app.me.isTutor ? "checked" : ""}/> Show the tutor observation field</label>
         <label class="toggle"><input type="checkbox" data-act="toggle-list" ${app.me.hasList ? "checked" : ""}/> I have an assigned list</label>
         <label class="setting">Name in the Sheet's ownership column
           <input type="text" data-act="ownername" value="${esc((app.me.ownerNames || []).join(", "))}" placeholder="e.g. Anna" />

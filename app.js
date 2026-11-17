@@ -61,7 +61,7 @@ const App = {
   async resolveMe() {
     const identity = Auth.getIdentity() || {};
     const email = (identity.email || "").toLowerCase();
-    const known = USERS[email] || { name: identity.name || email, role: "", hasList: false, isTutor: false, ownerNames: [] };
+    const known = USERS[email] || { name: identity.name || email, role: "", hasList: false, ownerNames: [] };
     const overrides = await Store.loadSettings();
     this.me = Object.assign({ email }, known, overrides.profile || {});
     this.dateOverride = overrides.dateOverride || null;
@@ -296,7 +296,6 @@ const App = {
       hook: hookEl ? hookEl.value.trim() : "",
       nextStep: this.draft.nextStep || "",
       captureMethod: contact ? "From the file" : (this.draft.source || "Typed on site"),
-      observation: this.me.isTutor ? (this.draft.observation || "") : "",
       contactRef: contact ? Model.contactRef(contact) : ""
     };
 
@@ -442,7 +441,6 @@ document.addEventListener("click", async e => {
     return;
   }
 
-  if (act === "toggle-tutor") { await App.saveProfile({ isTutor: el.checked }); App.render(); return; }
   if (act === "toggle-list")  { await App.saveProfile({ hasList: el.checked }); App.filters = el.checked ? ["mine"] : []; App.render(); return; }
 });
 

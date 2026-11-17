@@ -51,15 +51,15 @@ const EVENT = {
   Victoire: always tell them apart by Entry type, never by Met by.
 */
 const USERS = {
-  "edouard.derville@deepip.ai":         { name: "Edouard D", fullName: "Edouard Derville",         role: "Sales",     hasList: true,  isTutor: false, ownerNames: ["derville"] },
-  "andreas.andersson@deepip.ai":        { name: "Andreas",   fullName: "Andreas Andersson",        role: "Sales",     hasList: true,  isTutor: false, ownerNames: ["andersson"] },
-  "bertrand.julia@deepip.ai":           { name: "Bertrand",  fullName: "Bertrand Julia",           role: "Sales",     hasList: true,  isTutor: false, ownerNames: ["julia"] },
-  "thomas.kefalas@deepip.ai":           { name: "Thomas K",  fullName: "Thomas Kefalas",           role: "Success",   hasList: true,  isTutor: false, ownerNames: ["kefalas"] },
-  "dominic.chapman@deepip.ai":          { name: "Dominic",   fullName: "Dominic Chapman",          role: "BDR",       hasList: true,  isTutor: false, ownerNames: ["chapman"] },
-  "fx@deepip.ai":                       { name: "FX",        fullName: "François Xavier Leduc",    role: "CEO",       hasList: true,  isTutor: false, ownerNames: ["leduc"] },
-  "edouard.darchimbaud@deepip.ai":      { name: "Edouard A", fullName: "Edouard d'Archimbaud",     role: "CTO",       hasList: false, isTutor: false, ownerNames: ["archimbaud"] },
-  "quentin.jorget@deepip.ai":           { name: "Quentin",   fullName: "Quentin Jorget",           role: "Expert",    hasList: false, isTutor: false, ownerNames: ["jorget"] },
-  "victoire.perinet-marquet@deepip.ai": { name: "Victoire",  fullName: "Victoire Perinet-Marquet", role: "Marketing", hasList: true,  isTutor: false, ownerNames: ["perinet"] }
+  "edouard.derville@deepip.ai":         { name: "Edouard D", fullName: "Edouard Derville",         role: "Sales",     hasList: true,  ownerNames: ["derville"] },
+  "andreas.andersson@deepip.ai":        { name: "Andreas",   fullName: "Andreas Andersson",        role: "Sales",     hasList: true,  ownerNames: ["andersson"] },
+  "bertrand.julia@deepip.ai":           { name: "Bertrand",  fullName: "Bertrand Julia",           role: "Sales",     hasList: true,  ownerNames: ["julia"] },
+  "thomas.kefalas@deepip.ai":           { name: "Thomas K",  fullName: "Thomas Kefalas",           role: "Success",   hasList: true,  ownerNames: ["kefalas"] },
+  "dominic.chapman@deepip.ai":          { name: "Dominic",   fullName: "Dominic Chapman",          role: "BDR",       hasList: true,  ownerNames: ["chapman"] },
+  "fx@deepip.ai":                       { name: "FX",        fullName: "François Xavier Leduc",    role: "CEO",       hasList: true,  ownerNames: ["leduc"] },
+  "edouard.darchimbaud@deepip.ai":      { name: "Edouard A", fullName: "Edouard d'Archimbaud",     role: "CTO",       hasList: false, ownerNames: ["archimbaud"] },
+  "quentin.jorget@deepip.ai":           { name: "Quentin",   fullName: "Quentin Jorget",           role: "Expert",    hasList: false, ownerNames: ["jorget"] },
+  "victoire.perinet-marquet@deepip.ai": { name: "Victoire",  fullName: "Victoire Perinet-Marquet", role: "Marketing", hasList: true,  ownerNames: ["perinet"] }
 };
 
 // "Assigned to me" = the Ownership column. Renamed from "Covered by" on 16 Nov;
@@ -72,8 +72,7 @@ const CAPTURE_OPTIONS = {
   met:         ["Yes", "No", "Not seen"],
   temperature: ["Hot", "Warm", "Cold", "Not a fit"],
   toolToday:   ["Nothing", "Built in-house", "General-purpose LLM", "Other", "Unknown"], // + COMPETITORS
-  nextStep:    ["Demo", "Intro", "Send content", "Meeting", "Nothing"],
-  observation: ["Engaged", "Asked a good question", "Already using a tool", "Stuck on something"]
+  nextStep:    ["Demo", "Intro", "Send content", "Meeting", "Nothing"]
 };
 
 /* Extra fields. All optional, one tap each. Headers are frozen and mapped in
