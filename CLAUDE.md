@@ -214,6 +214,54 @@ check-in making someone look met, which would quietly empty the "not yet met" li
 on the one evening it matters. A row with no `Entry type` at all is read as a
 capture, so rows typed into the Sheet by hand still count.
 
+**The follow-up is a second, separate build, and it is not in this repo**
+(Paris, Nov 2026). The field app ends when the writes stop. Turning the night
+into sent email is its own tool, built the evening before the event rather than
+the morning after, because the morning after is forty to eighty drafts before
+noon and there is no room to write a generator that day. Build it against
+invented people; the write tab is empty until the event anyway.
+
+It lives beside the repo, never in it: its input is the guest list and its
+output is full of names, notes and addresses, while this repo is public for the
+life of the event. Three files and a template — `rules.js` (pure, no DOM, no
+network), `generate.js`, `test.js`, and an HTML template with a `__DATA__`
+marker. The same drafts go three ways: one shared file, one file per person for
+a DM, and a published page for the whole team.
+
+Four rules in it are worth carrying to the next event, because each one is a
+mistake waiting to be made:
+
+1. **Name the columns a draft may never read, and prove it with sentinels.**
+   Watch-outs, Lifecycle stage, Deal, Deal stage. A test that writes
+   `WATCHOUTS-SENTINEL` into the cell and asserts it appears in no subject and
+   no body costs five lines and is the only thing standing between a competitor
+   name and a customer's inbox.
+2. **Re-read the columns you were told were safe.** This event's brief allowed
+   `Why them` and `Opener`. By the week of the event those cells held "Lost a
+   year ago versus <competitor>" and "<colleague>'s opportunity". The brief was
+   written before the field zone was filled in, and the data changed character
+   under it. Show them beside the draft, never inside it.
+3. **Never invent the sentence you do not have.** No note behind a conversation
+   produces a visible `[NEEDS: ...]` and sorts to the top. A plausible sentence
+   about a conversation nobody recorded reads fine and goes out wrong.
+4. **Hand the note back marked, rather than rewriting it.** A note dictated at
+   19:40 is written to oneself, in the third person. Dropped into a message
+   addressed to that same person it reads like a file card read aloud. It goes
+   in between `[REWRITE THIS ...]` and `[end of note]`, where the sentence
+   belongs, and a human turns it around. Where the page can ask a model, the
+   prompt is built in the page from the note and the first name only, so there
+   is one place to check what leaves it.
+
+**A shared page beats a shared file once someone has to steer it** (Paris, Nov
+2026). One file per person is the safe default: nobody holds anyone else's
+notes. But the person running the floor needs the other view — who has sent
+what, who has not started. That is a published page with the `db` and `user`
+capabilities: each draft carries a state (prepared, sent, replied, meeting), the
+states are shared, and a table at the top turns them into per-person progress.
+Copying a draft sets it to prepared on its own, because a state nobody updates
+is worse than no state. The page holds guest data, so it is private and shared
+by hand, never linked from anything public.
+
 ---
 
 ## 6. Deployment checklist
