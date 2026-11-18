@@ -42,9 +42,13 @@ const EVENT = {
 /* ---- Who is who ------------------------------------------------------- */
 /*
   `name` is what lands in "Met by". `ownerNames` are matched as substrings of the
-  "Ownership" column (OWNER_KEYS), accents stripped. They must be DISTINCTIVE:
-  two Edouards and two Thomases are in the data, so first names alone would
-  assign one person's list to the other. Surnames only.
+  "Ownership" column (OWNER_KEYS), accents stripped. They must be DISTINCTIVE,
+  because a loose match hands one person's list to someone else.
+
+  Everyone has their surname. The five whose FIRST name is unique in this team
+  have that too: on 17 November the field zone was filled in with first names,
+  and those rows reached nobody. Edouard and Thomas keep surnames only — there
+  are two of each, and a first name there would misroute a whole list.
 
   Romy runs the check-in at the welcome desk, signed in with Victoire's account
   on her own phone (decided 13 Nov). Check-in rows therefore carry Met by =
@@ -52,14 +56,14 @@ const EVENT = {
 */
 const USERS = {
   "edouard.derville@deepip.ai":         { name: "Edouard D", fullName: "Edouard Derville",         role: "Sales",     hasList: true,  ownerNames: ["derville"] },
-  "andreas.andersson@deepip.ai":        { name: "Andreas",   fullName: "Andreas Andersson",        role: "Sales",     hasList: true,  ownerNames: ["andersson"] },
-  "bertrand.julia@deepip.ai":           { name: "Bertrand",  fullName: "Bertrand Julia",           role: "Sales",     hasList: true,  ownerNames: ["julia"] },
+  "andreas.andersson@deepip.ai":        { name: "Andreas",   fullName: "Andreas Andersson",        role: "Sales",     hasList: true,  ownerNames: ["andersson", "andreas"] },
+  "bertrand.julia@deepip.ai":           { name: "Bertrand",  fullName: "Bertrand Julia",           role: "Sales",     hasList: true,  ownerNames: ["julia", "bertrand"] },
   "thomas.kefalas@deepip.ai":           { name: "Thomas K",  fullName: "Thomas Kefalas",           role: "Success",   hasList: true,  ownerNames: ["kefalas"] },
-  "dominic.chapman@deepip.ai":          { name: "Dominic",   fullName: "Dominic Chapman",          role: "BDR",       hasList: true,  ownerNames: ["chapman"] },
+  "dominic.chapman@deepip.ai":          { name: "Dominic",   fullName: "Dominic Chapman",          role: "BDR",       hasList: true,  ownerNames: ["chapman", "dominic"] },
   "fx@deepip.ai":                       { name: "FX",        fullName: "François Xavier Leduc",    role: "CEO",       hasList: true,  ownerNames: ["leduc"] },
   "edouard.darchimbaud@deepip.ai":      { name: "Edouard A", fullName: "Edouard d'Archimbaud",     role: "CTO",       hasList: false, ownerNames: ["archimbaud"] },
-  "quentin.jorget@deepip.ai":           { name: "Quentin",   fullName: "Quentin Jorget",           role: "Expert",    hasList: false, ownerNames: ["jorget"] },
-  "victoire.perinet-marquet@deepip.ai": { name: "Victoire",  fullName: "Victoire Perinet-Marquet", role: "Marketing", hasList: true,  ownerNames: ["perinet"] }
+  "quentin.jorget@deepip.ai":           { name: "Quentin",   fullName: "Quentin Jorget",           role: "Expert",    hasList: false, ownerNames: ["jorget", "quentin"] },
+  "victoire.perinet-marquet@deepip.ai": { name: "Victoire",  fullName: "Victoire Perinet-Marquet", role: "Marketing", hasList: true,  ownerNames: ["perinet", "victoire"] }
 };
 
 // "Assigned to me" = the Ownership column. Renamed from "Covered by" on 16 Nov;
@@ -105,7 +109,14 @@ const ENTRY_TYPES = {
    Follow-up owner column (decided in the brief, replaces the technical-field
    rule for this event: senior audience, relationship-led). Plasseraud guests get
    their own drafting logic, with the Plasseraud partner visible. Every draft is
-   reviewed by hand. */
+   reviewed by hand.
+
+   A draft may use Why them, Opener, and what the seller logged on the night.
+   It must NEVER quote or paraphrase Watch-outs: since 17 November that column
+   holds competitor names and deal notes, written for the seller's eyes on the
+   card and for nobody else's. Lifecycle stage, Deal and Deal stage are internal
+   in the same way. Nothing read from those four fields belongs in a message
+   that leaves the building. */
 const FOLLOW_UP = {
   sender: "followUpOwner",
   fallbackSender: "metBy",
@@ -148,7 +159,11 @@ const LIST_FIELDS = [
 const LIST_FILTERS = [
   "mine",
   "notmet",
-  { id: "prio-1",     label: "Priority 1",       key: "priority",   match: "1" },
+  // Was a configured chip testing the cell for the character "1", which missed
+  // every row the field zone graded A. "p1" is the built-in chip: it goes
+  // through Model.priority(), which reads A/B/C and P1-P3 alike. Add "p2" and
+  // "p3" the same way if the floor wants them.
+  "p1",
   { id: "plasseraud", label: "Plasseraud guests", key: "population", match: "Plasseraud guest" },
   { id: "hosts",      label: "Hosts",            key: "population", match: "Plasseraud host" },
   { id: "speakers",   label: "On stage",         key: "onStage",    match: "Panel" },
