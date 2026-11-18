@@ -137,10 +137,13 @@ function coverageLoad() {
  * Prints DeepIP names only — never a guest — so the log is safe to paste.
  */
 function unmatchedOwnership() {
-  // Mirrors USERS in config.js: surnames only, lower case, no accents.
+  // Mirrors ownerNames in config.js USERS: lower case, no accents. Surnames for
+  // everyone, plus the five first names that are unique on this floor (added
+  // 17 Nov, when the field zone came back filled in with first names).
   // If someone joins or leaves the floor, change it in both places.
-  var OWNER_NAMES = ['derville', 'andersson', 'julia', 'kefalas', 'chapman',
-                     'leduc', 'archimbaud', 'jorget', 'perinet'];
+  var OWNER_NAMES = ['derville', 'andersson', 'andreas', 'julia', 'bertrand',
+                     'kefalas', 'chapman', 'dominic', 'leduc', 'archimbaud',
+                     'jorget', 'quentin', 'perinet', 'victoire'];
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = resolveTab(ss, 'contacts', null);

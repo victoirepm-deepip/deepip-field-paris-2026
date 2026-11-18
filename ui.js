@@ -526,7 +526,14 @@ const UI = (() => {
   }
 
   /* ---- capture ----------------------------------------------------------
-     Five fields. Four as thumb-sized button groups, one short text. No dictation.
+     The note comes FIRST and large (sales sync, 18 Nov). It is the only field
+     here that cannot be reconstructed afterwards, and it is what Friday's
+     follow-up is drafted from; the button groups under it are a convenience.
+     No dictation API: the phone keyboard already has a mic, and the hint under
+     the field points at it.
+
+     The Sheet column behind it is still "Hook" and the element is still
+     cap-hook. ENCOUNTER_COLUMNS is frozen; only the label and the order moved.
 
      The unknown-person path is the top of this screen, not a dead end reached
      after a failed search: it is the most-used path across the three days. */
@@ -561,12 +568,13 @@ const UI = (() => {
 
     return screen(p ? "Log a meeting" : "Log someone new", `
       ${header}
+      <label class="cap-note">Notes
+        <textarea id="cap-hook" rows="7" placeholder="Everything worth remembering, in any order.">${esc(draft.hook || "")}</textarea>
+        <small>Hold the mic on your keyboard and talk. Another conversation from now, this is gone.</small>
+      </label>
       ${group("met", CAPTURE_OPTIONS.met, draft.met)}
       ${group("temperature", CAPTURE_OPTIONS.temperature, draft.temperature)}
       ${group("toolToday", CAPTURE_OPTIONS.toolToday, draft.toolToday)}
-      <label class="hook">Hook — the thing to reuse in the follow-up
-        <textarea id="cap-hook" rows="3" placeholder="One line you will be glad you wrote">${esc(draft.hook || "")}</textarea>
-      </label>
       ${group("nextStep", CAPTURE_OPTIONS.nextStep, draft.nextStep)}
       ${(typeof CAPTURE_EXTRA !== "undefined" ? CAPTURE_EXTRA : []).map(x => extraField(x, draft)).join("")}
       <button class="btn btn-primary" data-act="save" ${Sync.state.frozen ? "disabled" : ""}>Save</button>
