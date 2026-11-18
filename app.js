@@ -290,6 +290,8 @@ const App = {
       role: contact ? Model.clean(contact.role) : "",
       inList: contact ? "Yes" : "No",
       inDirectory: inDirectory ? "Yes" : "No",
+      // Always "" since 18 Nov: the field left the form, the column stayed.
+      // Blank reads as met everywhere, which is the point.
       met: this.draft.met || "",
       temperature: this.draft.temperature || "",
       toolToday: this.draft.toolToday || "",

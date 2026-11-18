@@ -72,8 +72,13 @@ const OWNER_KEYS = ["ownership"];
 
 /* ---- Capture form ----------------------------------------------------- */
 
+/* `met` was removed from the form on 18 Nov. Logging a conversation IS meeting
+   the person, so the field only ever gave a seller a way to contradict
+   themselves. Nothing else changes: Model.isMet treats a row as met unless the
+   cell says "No" or "Not seen", so a blank one has always counted as met, and
+   the "Met status" column stays on Encounter, written empty. A row typed into
+   the Sheet by hand can still say No, and the recap will still honour it. */
 const CAPTURE_OPTIONS = {
-  met:         ["Yes", "No", "Not seen"],
   temperature: ["Hot", "Warm", "Cold", "Not a fit"],
   toolToday:   ["Nothing", "Built in-house", "General-purpose LLM", "Other", "Unknown"], // + COMPETITORS
   nextStep:    ["Demo", "Intro", "Send content", "Meeting", "Nothing"]

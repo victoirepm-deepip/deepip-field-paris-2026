@@ -263,7 +263,16 @@ const UI = (() => {
     `);
   }
 
-  /** Level 1. One line, one line only: name, firm, priority chip, one flag icon. */
+  /** Level 1. One line, one line only: name, firm, priority chip, one flag icon.
+
+      Two targets per row, asked for by sales on 18 Nov: the row opens the card
+      to read, the Log button goes straight to the note. A conversation that has
+      just ended is worth more than the card, and the card is where the time went.
+
+      The button is a SIBLING of the row, not a child: the row is an <a>, and an
+      <a> inside an <a> is invalid and comes apart in the browser. It is laid
+      over the right edge instead, so the five-column grid is untouched and only
+      the row's right padding changes. */
   function personRow(p, app) {
     const flag = Model.topFlag(p);
     const prio = Model.priority(p).value;
@@ -272,14 +281,18 @@ const UI = (() => {
     // wrapping. An event can add a second line of tags (LIST_FIELDS in config.js);
     // with none configured, or none filled for this person, the row is one line.
     const tags = listTags(p, app);
-    return `<a class="row ${met ? "row-seen" : ""}${tags ? " row-2l" : ""}" href="#/person/${encodeURIComponent(Model.contactKey(p))}">
+    const key = encodeURIComponent(Model.contactKey(p));
+    return `<div class="row-wrap">
+      <a class="row ${met ? "row-seen" : ""}${tags ? " row-2l" : ""}" href="#/person/${key}">
       <span class="row-flag ${flag ? "flag-" + flag.key : ""}" title="${flag ? esc(flag.label) : ""}">${flag ? flag.icon : ""}</span>
       <span class="row-name">${photo(p, "row-photo")}<span class="row-nametext">${esc(Model.fullName(p))}</span></span>
       <span class="row-firm">${esc(c(p.firm))}</span>
       <span class="row-prio ${prio ? "p" + prio : ""}">${esc(Model.priorityShort(p))}</span>
       <span class="row-check" title="${met ? "Met" : "Not yet met"}">${met ? "✓" : ""}</span>
       ${tags}
-    </a>`;
+      </a>
+      <a class="row-log" href="#/capture/${key}" aria-label="Log a meeting with ${esc(Model.fullName(p))}">Log</a>
+    </div>`;
   }
 
   /**
@@ -532,7 +545,11 @@ const UI = (() => {
      No dictation API: the phone keyboard already has a mic, and the hint under
      the field points at it.
 
-     The Sheet column behind it is still "Hook" and the element is still
+     Next step follows it, because those two are what Friday's draft is built
+     from. Temperature and Tool today sit under them: useful to have, but they
+     are read afterwards, by us, not by the person writing at 19:40.
+
+     The Sheet column behind the note is still "Hook" and the element is still
      cap-hook. ENCOUNTER_COLUMNS is frozen; only the label and the order moved.
 
      The unknown-person path is the top of this screen, not a dead end reached
@@ -569,13 +586,12 @@ const UI = (() => {
     return screen(p ? "Log a meeting" : "Log someone new", `
       ${header}
       <label class="cap-note">Notes
-        <textarea id="cap-hook" rows="7" placeholder="Everything worth remembering, in any order.">${esc(draft.hook || "")}</textarea>
+        <textarea id="cap-hook" rows="7" ${p ? "autofocus" : ""} placeholder="Everything worth remembering, in any order.">${esc(draft.hook || "")}</textarea>
         <small>Hold the mic on your keyboard and talk. Another conversation from now, this is gone.</small>
       </label>
-      ${group("met", CAPTURE_OPTIONS.met, draft.met)}
+      ${group("nextStep", CAPTURE_OPTIONS.nextStep, draft.nextStep)}
       ${group("temperature", CAPTURE_OPTIONS.temperature, draft.temperature)}
       ${group("toolToday", CAPTURE_OPTIONS.toolToday, draft.toolToday)}
-      ${group("nextStep", CAPTURE_OPTIONS.nextStep, draft.nextStep)}
       ${(typeof CAPTURE_EXTRA !== "undefined" ? CAPTURE_EXTRA : []).map(x => extraField(x, draft)).join("")}
       <button class="btn btn-primary" data-act="save" ${Sync.state.frozen ? "disabled" : ""}>Save</button>
       <p class="muted small pad">Saved on this phone first. It reaches the Sheet on its own, even if you are offline now.</p>
@@ -603,8 +619,7 @@ const UI = (() => {
   }
 
   const groupLabel = n => ({
-    met: "Met", temperature: "Temperature", toolToday: "Tool today",
-    nextStep: "Next step"
+    temperature: "Temperature", toolToday: "Tool today", nextStep: "Next step"
   })[n] || n;
 
   /* ---- tonight ----------------------------------------------------------
