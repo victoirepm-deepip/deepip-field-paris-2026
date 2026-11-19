@@ -66,6 +66,19 @@ const USERS = {
   "victoire.perinet-marquet@deepip.ai": { name: "Victoire",  fullName: "Victoire Perinet-Marquet", role: "Marketing", hasList: true,  ownerNames: ["perinet", "victoire"] }
 };
 
+/* Second addresses. USERS is keyed by the email on the Google account someone
+   actually signs in with, and several people here have more than one. An
+   address that is not a key gets a profile with no ownerNames, which matches
+   nothing — silently, with no error: the list is simply empty and the app
+   looks broken. That is what happened to FX on the night of the 19th, signed
+   in as francois-xavier.leduc rather than fx.
+
+   These point at the same object, not a copy, so a profile can never drift
+   from its alias. Settings still overrides per phone for anyone not listed
+   here; this is the fix that survives a reinstall. */
+USERS["francois-xavier.leduc@deepip.ai"] = USERS["fx@deepip.ai"];
+USERS["edouard@deepip.ai"]               = USERS["edouard.darchimbaud@deepip.ai"];
+
 // "Assigned to me" = the Ownership column. Renamed from "Covered by" on 16 Nov;
 // the old header is kept as an alias in Code.gs. Backup was deleted that day.
 const OWNER_KEYS = ["ownership"];

@@ -145,6 +145,27 @@ ok("the note is not focused there", /autofocus/.test(formNew), false);
 ok("it asks for a last name", /id="cap-last"/.test(formNew), true);
 ok("and a firm", /id="cap-firm"/.test(formNew), true);
 
+/* ---- second addresses, added on the night ------------------------------ */
+
+head("Someone signing in with their other address is still themselves");
+{
+  const U = vm.runInContext("USERS", ctx);
+  ok("FX by his short address", !!U["fx@deepip.ai"], true);
+  ok("and by his full one", U["francois-xavier.leduc@deepip.ai"], U["fx@deepip.ai"]);
+  ok("the same object, not a copy",
+     U["francois-xavier.leduc@deepip.ai"] === U["fx@deepip.ai"], true);
+  ok("so the ownership name comes along", U["francois-xavier.leduc@deepip.ai"].ownerNames, ["leduc"]);
+  ok("Edouard d'Archimbaud likewise",
+     U["edouard@deepip.ai"] === U["edouard.darchimbaud@deepip.ai"], true);
+
+  // The thing an alias must never do: hand one person another's list.
+  const everyone = Object.keys(U);
+  const clashes = everyone.filter(a => everyone.some(b =>
+    a !== b && U[a] !== U[b] && U[a].ownerNames.some(n =>
+      U[b].ownerNames.some(m => n !== m && (n.indexOf(m) > -1 || m.indexOf(n) > -1)))));
+  ok("no owner name is a substring of another person's", clashes, []);
+}
+
 /* ---- the empty "my list" screen, reworked on the night ----------------- */
 
 head("Someone the app cannot match sees the way out, not a blank screen");
