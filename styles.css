@@ -114,6 +114,10 @@ h1,h2,h3{margin:0}
 /* The Log button sits over the right edge of the row rather than inside it:
    the row is a link, and a link inside a link does not survive the parser.
    The row's own grid is untouched; its right padding makes the room. */
+/* The empty-list screen offers two ways out; they sit on one row and wrap. */
+.empty-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.empty-acts .btn{width:auto;margin:0}
+
 .row-wrap{position:relative}
 .row-wrap .row{padding-right:48px}
 /* The button costs the name its width, and the name is what you scan for. On a

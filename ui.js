@@ -334,13 +334,28 @@ const UI = (() => {
     // the Sheet, so Ownership is empty until they do. An empty screen with no
     // explanation is read as a broken app and gets reported as one, so this
     // says what is happening, who fixes it, and offers the way through.
+    //
+    // The second cause was found on the night (19 Nov), with the room filling
+    // up: someone signed in with an address that is not their key in USERS
+    // gets a profile with no ownerNames, which matches nothing — silently, with
+    // no error anywhere. The list is simply empty and the app looks broken.
+    // Settings already fixes it in ten seconds; nothing here said so.
     if (active.indexOf("mine") > -1) {
       return `<div class="empty">
         <p>No guests assigned to you yet.</p>
-        <p class="muted">You claim your own guests in the Sheet: put your name in the
-        <strong>Ownership</strong> column, from the dropdown. Whatever you claim shows up here
-        at the next refresh.</p>
-        <button class="btn btn-ghost" data-act="clearfilters">Show everyone instead</button>
+        <p class="muted">Two things empty this screen, and the second one is quick to rule out.</p>
+        <p class="muted"><strong>1.</strong> Nobody has claimed you in the Sheet. Put your name in the
+        <strong>Ownership</strong> column, from the dropdown; whatever you claim shows up here at the
+        next refresh.</p>
+        <p class="muted"><strong>2.</strong> The app does not know which name is yours. Open
+        <a href="#/settings">Settings</a>, check the address under <em>Signed in as</em>, and type your
+        surname — exactly as the Ownership column spells it — into
+        <em>Name in the Sheet's ownership column</em>. Tap outside the field to save it; it will not
+        save while the keyboard is still up.</p>
+        <div class="empty-acts">
+          <a class="btn btn-primary" href="#/settings">Open Settings</a>
+          <button class="btn btn-ghost" data-act="clearfilters">Show everyone instead</button>
+        </div>
       </div>`;
     }
     return `<div class="empty"><p>No one matches these filters.</p></div>`;

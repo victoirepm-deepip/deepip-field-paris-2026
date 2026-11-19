@@ -145,6 +145,38 @@ ok("the note is not focused there", /autofocus/.test(formNew), false);
 ok("it asks for a last name", /id="cap-last"/.test(formNew), true);
 ok("and a firm", /id="cap-firm"/.test(formNew), true);
 
+/* ---- the empty "my list" screen, reworked on the night ----------------- */
+
+head("Someone the app cannot match sees the way out, not a blank screen");
+{
+  // A signed-in user whose address is not a key in USERS: no ownerNames, so
+  // isMine matches nothing and "Assigned to me" is empty with no error.
+  const stranger = { name: "Someone", fullName: "Someone Else", ownerNames: [], hasList: true };
+  const html = UI.list({
+    ctx: { contacts: people, encounters: [], index: idx([]), directory: [],
+           firms: M.buildFirms(people), me: stranger },
+    filters: ["mine"], me: stranger, draft: {}, arrivedCount: () => 0,
+    now: () => new Date("2026-11-19T19:45:00+01:00")
+  });
+  ok("the list really is empty for them", /No guests assigned to you yet/.test(html), true);
+  ok("it names the Sheet column", /Ownership/.test(html), true);
+  ok("and it offers Settings", /href="#\/settings"/.test(html), true);
+  ok("warning that the field saves on blur", /Tap outside the field/.test(html), true);
+  ok("the escape hatch is still there", /data-act="clearfilters"/.test(html), true);
+}
+
+head("Someone the app does match is unaffected");
+{
+  const html = UI.list({
+    ctx: { contacts: people, encounters: [], index: idx([]), directory: [],
+           firms: M.buildFirms(people), me: me },
+    filters: ["mine"], me, draft: {}, arrivedCount: () => 0,
+    now: () => new Date("2026-11-19T19:45:00+01:00")
+  });
+  ok("they see their list, not the empty state", /No guests assigned to you yet/.test(html), false);
+  ok("all three of them", (html.match(/class="row-wrap"/g) || []).length, people.length);
+}
+
 /* ---- what the follow-up must never carry ------------------------------ */
 
 head("Nothing internal leaks into a rendered card");
